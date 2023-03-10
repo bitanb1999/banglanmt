@@ -10,22 +10,18 @@ def get_var_maybe_avg(namespace, var_name, training, polyak_decay):
         Update average
     """
     v = getattr(namespace, var_name)
-    v_avg = getattr(namespace, var_name + '_avg')
+    v_avg = getattr(namespace, f'{var_name}_avg')
     v_avg -= (1 - polyak_decay) * (v_avg - v.data)
 
-    if training:
-        return v
-    else:
-        return v_avg
+    return v if training else v_avg
 
 
 def get_vars_maybe_avg(namespace, var_names, training, polyak_decay):
     """ utility for retrieving polyak averaged params """
-    vars = []
-    for vn in var_names:
-        vars.append(get_var_maybe_avg(
-            namespace, vn, training, polyak_decay))
-    return vars
+    return [
+        get_var_maybe_avg(namespace, vn, training, polyak_decay)
+        for vn in var_names
+    ]
 
 
 class WeightNormLinear(nn.Linear):
@@ -127,7 +123,7 @@ class WeightNormConv2d(nn.Conv2d):
             self.V.data.copy_(torch.randn(self.V.data.size()
                                           ).type_as(self.V.data) * 0.05)
             v_norm = self.V.data / self.V.data.view(self.out_channels, -1)\
-                .norm(2, 1).view(self.out_channels, *(
+                    .norm(2, 1).view(self.out_channels, *(
                     [1] * (len(self.kernel_size) + 1))).expand_as(self.V.data)
             x_init = F.conv2d(x, v_norm, None, self.stride,
                               self.padding, self.dilation, self.groups).data
@@ -137,7 +133,7 @@ class WeightNormConv2d(nn.Conv2d):
                 1), t_x_init.var(1).squeeze(1)
             # out_features
             scale_init = self.init_scale / \
-                torch.sqrt(v_init + 1e-10)
+                    torch.sqrt(v_init + 1e-10)
             self.g.data.copy_(scale_init)
             self.b.data.copy_(-m_init * scale_init)
             scale_init_shape = scale_init.view(
@@ -156,11 +152,7 @@ class WeightNormConv2d(nn.Conv2d):
                 polyak_decay=self.polyak_decay)
 
             scalar = torch.norm(v.view(self.out_channels, -1), 2, 1)
-            if len(scalar.size()) == 2:
-                scalar = g / scalar.squeeze(1)
-            else:
-                scalar = g / scalar
-
+            scalar = g / scalar.squeeze(1) if len(scalar.size()) == 2 else g / scalar
             w = scalar.view(self.out_channels, *
                             ([1] * (len(v.size()) - 1))).expand_as(v) * v
 

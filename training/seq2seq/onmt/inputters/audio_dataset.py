@@ -62,21 +62,16 @@ class AudioDataReader(DataReaderBase):
         # up-to-date torchaudio, but in the meantime there is a legacy
         # method which uses the old defaults
         sound, sample_rate_ = torchaudio.legacy.load(audio_path)
-        if self.truncate and self.truncate > 0:
-            if sound.size(0) > self.truncate:
-                sound = sound[:self.truncate]
+        if self.truncate and self.truncate > 0 and sound.size(0) > self.truncate:
+            sound = sound[:self.truncate]
 
         assert sample_rate_ == self.sample_rate, \
-            'Sample rate of %s != -sample_rate (%d vs %d)' \
-            % (audio_path, sample_rate_, self.sample_rate)
+                'Sample rate of %s != -sample_rate (%d vs %d)' \
+                % (audio_path, sample_rate_, self.sample_rate)
 
         sound = sound.numpy()
         if len(sound.shape) > 1:
-            if sound.shape[1] == 1:
-                sound = sound.squeeze()
-            else:
-                sound = sound.mean(axis=1)  # average multiple channels
-
+            sound = sound.squeeze() if sound.shape[1] == 1 else sound.mean(axis=1)
         n_fft = int(self.sample_rate * self.window_size)
         win_length = n_fft
         hop_length = int(self.sample_rate * self.window_stride)
@@ -110,7 +105,7 @@ class AudioDataReader(DataReaderBase):
         """
 
         assert src_dir is not None and os.path.exists(src_dir),\
-            "src_dir must be a valid directory if data_type is audio"
+                "src_dir must be a valid directory if data_type is audio"
 
         if isinstance(data, str):
             data = DataReaderBase._read_file(data)
@@ -121,11 +116,10 @@ class AudioDataReader(DataReaderBase):
             if not os.path.exists(audio_path):
                 audio_path = line
 
-            assert os.path.exists(audio_path), \
-                'audio path %s not found' % line
+            assert os.path.exists(audio_path), f'audio path {line} not found'
 
             spect = self.extract_features(audio_path)
-            yield {side: spect, side + '_path': line, 'indices': i}
+            yield {side: spect, f'{side}_path': line, 'indices': i}
 
 
 def audio_sort_key(ex):
@@ -167,7 +161,7 @@ class AudioSeqField(Field):
         """
 
         assert not self.pad_first and not self.truncate_first \
-            and not self.fix_length and self.sequential
+                and not self.fix_length and self.sequential
         minibatch = list(minibatch)
         lengths = [x.size(1) for x in minibatch]
         max_len = max(lengths)
@@ -175,9 +169,7 @@ class AudioSeqField(Field):
         sounds = torch.full((len(minibatch), 1, nfft, max_len), self.pad_token)
         for i, (spect, len_) in enumerate(zip(minibatch, lengths)):
             sounds[i, :, :, 0:len_] = spect
-        if self.include_lengths:
-            return (sounds, lengths)
-        return sounds
+        return (sounds, lengths) if self.include_lengths else sounds
 
     def numericalize(self, arr, device=None):
         """Turn a batch of examples that use this field into a Variable.
@@ -212,11 +204,8 @@ class AudioSeqField(Field):
         if self.sequential:
             arr = arr.contiguous()
         arr = arr.to(device)
-        if self.include_lengths:
-            return arr, lengths
-        return arr
+        return (arr, lengths) if self.include_lengths else arr
 
 
 def audio_fields(**kwargs):
-    audio = AudioSeqField(pad_index=0, batch_first=True, include_lengths=True)
-    return audio
+    return AudioSeqField(pad_index=0, batch_first=True, include_lengths=True)

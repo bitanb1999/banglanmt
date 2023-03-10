@@ -68,19 +68,23 @@ class ImageDataReader(DataReaderBase):
             if not os.path.exists(img_path):
                 img_path = filename
 
-            assert os.path.exists(img_path), \
-                'img path %s not found' % filename
+            assert os.path.exists(img_path), f'img path {filename} not found'
 
             if self.channel_size == 1:
                 img = transforms.ToTensor()(
                     Image.fromarray(cv2.imread(img_path, 0)))
             else:
                 img = transforms.ToTensor()(Image.open(img_path))
-            if self.truncate and self.truncate != (0, 0):
-                if not (img.size(1) <= self.truncate[0]
-                        and img.size(2) <= self.truncate[1]):
-                    continue
-            yield {side: img, side + '_path': filename, 'indices': i}
+            if (
+                self.truncate
+                and self.truncate != (0, 0)
+                and (
+                    img.size(1) > self.truncate[0]
+                    or img.size(2) > self.truncate[1]
+                )
+            ):
+                continue
+            yield {side: img, f'{side}_path': filename, 'indices': i}
 
 
 def img_sort_key(ex):
@@ -91,8 +95,8 @@ def img_sort_key(ex):
 def batch_img(data, vocab):
     """Pad and batch a sequence of images."""
     c = data[0].size(0)
-    h = max([t.size(1) for t in data])
-    w = max([t.size(2) for t in data])
+    h = max(t.size(1) for t in data)
+    w = max(t.size(2) for t in data)
     imgs = torch.zeros(len(data), c, h, w).fill_(1)
     for i, img in enumerate(data):
         imgs[i, :, 0:img.size(1), 0:img.size(2)] = img
@@ -100,7 +104,9 @@ def batch_img(data, vocab):
 
 
 def image_fields(**kwargs):
-    img = Field(
-        use_vocab=False, dtype=torch.float,
-        postprocessing=batch_img, sequential=False)
-    return img
+    return Field(
+        use_vocab=False,
+        dtype=torch.float,
+        postprocessing=batch_img,
+        sequential=False,
+    )

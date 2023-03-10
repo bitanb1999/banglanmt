@@ -26,9 +26,7 @@ class TestAudioField(unittest.TestCase):
 
     @classmethod
     def degenerate_case(cls, init_case, params):
-        if params["batch_size"] < params["full_length_seq"]:
-            return True
-        return False
+        return params["batch_size"] < params["full_length_seq"]
 
     @classmethod
     def pad_inputs(cls, params):
@@ -141,13 +139,15 @@ class TestAudioField(unittest.TestCase):
         # tests pad and numericalize integration
         for init_case, params in itertools.product(
                 self.INIT_CASES, self.PARAMS):
-            if not self.degenerate_case(init_case, params):
-                if init_case["include_lengths"]:
-                    field = AudioSeqField(**init_case)
-                    fake_input, lengths = self.pad_inputs(params)
-                    lengths = torch.tensor(lengths, dtype=torch.int)
-                    _, outp_lengths = field.process(fake_input)
-                    self.assertTrue(outp_lengths.eq(lengths).all())
+            if (
+                not self.degenerate_case(init_case, params)
+                and init_case["include_lengths"]
+            ):
+                field = AudioSeqField(**init_case)
+                fake_input, lengths = self.pad_inputs(params)
+                lengths = torch.tensor(lengths, dtype=torch.int)
+                _, outp_lengths = field.process(fake_input)
+                self.assertTrue(outp_lengths.eq(lengths).all())
 
 
 class TestAudioDataReader(unittest.TestCase):

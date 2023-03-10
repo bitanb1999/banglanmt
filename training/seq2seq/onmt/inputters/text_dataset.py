@@ -91,8 +91,9 @@ class TextMultiField(RawField):
     def __init__(self, base_name, base_field, feats_fields):
         super(TextMultiField, self).__init__()
         self.fields = [(base_name, base_field)]
-        for name, ff in sorted(feats_fields, key=lambda kv: kv[0]):
-            self.fields.append((name, ff))
+        self.fields.extend(
+            (name, ff) for name, ff in sorted(feats_fields, key=lambda kv: kv[0])
+        )
 
     @property
     def base_field(self):
@@ -128,10 +129,7 @@ class TextMultiField(RawField):
         levels = [base_data] + feats
         # data: seq_len x batch_size x len(self.fields)
         data = torch.stack(levels, 2)
-        if self.base_field.include_lengths:
-            return data, lengths
-        else:
-            return data
+        return (data, lengths) if self.base_field.include_lengths else data
 
     def preprocess(self, x):
         """Preprocess data.
@@ -173,11 +171,11 @@ def text_fields(**kwargs):
     pad = kwargs.get("pad", "<blank>")
     bos = kwargs.get("bos", "<s>")
     eos = kwargs.get("eos", "</s>")
-    truncate = kwargs.get("truncate", None)
+    truncate = kwargs.get("truncate")
     fields_ = []
     feat_delim = u"￨" if n_feats > 0 else None
     for i in range(n_feats + 1):
-        name = base_name + "_feat_" + str(i - 1) if i > 0 else base_name
+        name = f"{base_name}_feat_{str(i - 1)}" if i > 0 else base_name
         tokenize = partial(
             _feature_tokenize,
             layer=i,
@@ -190,5 +188,4 @@ def text_fields(**kwargs):
             include_lengths=use_len)
         fields_.append((name, feat))
     assert fields_[0][0] == base_name  # sanity check
-    field = TextMultiField(fields_[0][0], fields_[0][1], fields_[1:])
-    return field
+    return TextMultiField(fields_[0][0], fields_[0][1], fields_[1:])

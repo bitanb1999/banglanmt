@@ -24,13 +24,13 @@ def main(opt):
 
     # Load checkpoint if we resume from a previous training.
     if opt.train_from:
-        logger.info('Loading checkpoint from %s' % opt.train_from)
+        logger.info(f'Loading checkpoint from {opt.train_from}')
         checkpoint = torch.load(opt.train_from,
                                 map_location=lambda storage, loc: storage)
-        logger.info('Loading vocab from checkpoint at %s.' % opt.train_from)
+        logger.info(f'Loading vocab from checkpoint at {opt.train_from}.')
         vocab = checkpoint['vocab']
     else:
-        vocab = torch.load(opt.data + '.vocab.pt')
+        vocab = torch.load(f'{opt.data}.vocab.pt')
 
     # check for code where vocab is saved instead of fields
     # (in the future this will be done in a smarter way)
@@ -43,14 +43,11 @@ def main(opt):
     if len(opt.data_ids) > 1:
         train_shards = []
         for train_id in opt.data_ids:
-            shard_base = "train_" + train_id
+            shard_base = f"train_{train_id}"
             train_shards.append(shard_base)
         train_iter = build_dataset_iter_multiple(train_shards, fields, opt)
     else:
-        if opt.data_ids[0] is not None:
-            shard_base = "train_" + opt.data_ids[0]
-        else:
-            shard_base = "train"
+        shard_base = "train" if opt.data_ids[0] is None else f"train_{opt.data_ids[0]}"
         train_iter = build_dataset_iter(shard_base, fields, opt)
 
     nb_gpu = len(opt.gpu_ranks)
@@ -115,8 +112,7 @@ def batch_producer(generator_to_serve, queues, semaphore, opt):
     for device_id, q in cycle(enumerate(queues)):
         b.dataset = None
         if isinstance(b.src, tuple):
-            b.src = tuple([_.to(torch.device(device_id))
-                           for _ in b.src])
+            b.src = tuple(_.to(torch.device(device_id)) for _ in b.src)
         else:
             b.src = b.src.to(torch.device(device_id))
         b.tgt = b.tgt.to(torch.device(device_id))

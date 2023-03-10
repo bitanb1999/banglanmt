@@ -150,7 +150,7 @@ class TestModel(unittest.TestCase):
             source_l: length of input sequence
             bsize: batchsize
         """
-        if opt.encoder_type == 'transformer' or opt.encoder_type == 'cnn':
+        if opt.encoder_type in ['transformer', 'cnn']:
             return
 
         word_field = self.get_field()
@@ -184,7 +184,7 @@ class TestModel(unittest.TestCase):
             source_l: length of input sequence
             bsize: batchsize
         """
-        if opt.encoder_type == 'transformer' or opt.encoder_type == 'cnn':
+        if opt.encoder_type in ['transformer', 'cnn']:
             return
         if opt.rnn_type == 'SRU':
             return
@@ -229,11 +229,11 @@ def _add_test(param_setting, methodname):
                 setattr(opt, param, setting)
         ArgumentParser.update_model_opts(opt)
         getattr(self, methodname)(opt)
+
     if param_setting:
-        name = 'test_' + methodname + "_" + "_".join(
-            str(param_setting).split())
+        name = f'test_{methodname}_' + "_".join(str(param_setting).split())
     else:
-        name = 'test_' + methodname + '_standard'
+        name = f'test_{methodname}_standard'
     setattr(TestModel, name, test_method)
     test_method.__name__ = name
 

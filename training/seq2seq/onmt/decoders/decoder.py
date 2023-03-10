@@ -114,16 +114,16 @@ class RNNDecoderBase(DecoderBase):
 
         # Set up the standard attention.
         self._coverage = coverage_attn
-        if not self.attentional:
-            if self._coverage:
-                raise ValueError("Cannot use coverage term with no attention.")
-            self.attn = None
-        else:
+        if self.attentional:
             self.attn = GlobalAttention(
                 hidden_size, coverage=coverage_attn,
                 attn_type=attn_type, attn_func=attn_func
             )
 
+        elif self._coverage:
+            raise ValueError("Cannot use coverage term with no attention.")
+        else:
+            self.attn = None
         if copy_attn and not reuse_copy_attn:
             if copy_attn_type == "none" or copy_attn_type is None:
                 raise ValueError(
@@ -163,8 +163,7 @@ class RNNDecoderBase(DecoderBase):
             # The encoder hidden is  (layers*directions) x batch x dim.
             # We need to convert it to layers x batch x (directions*dim).
             if self.bidirectional_encoder:
-                hidden = torch.cat([hidden[0:hidden.size(0):2],
-                                    hidden[1:hidden.size(0):2]], 2)
+                hidden = torch.cat([hidden[:hidden.size(0):2], hidden[1:hidden.size(0):2]], 2)
             return hidden
 
         if isinstance(encoder_final, tuple):  # LSTM
@@ -177,7 +176,7 @@ class RNNDecoderBase(DecoderBase):
         batch_size = self.state["hidden"][0].size(1)
         h_size = (batch_size, self.hidden_size)
         self.state["input_feed"] = \
-            self.state["hidden"][0].data.new(*h_size).zero_().unsqueeze(0)
+                self.state["hidden"][0].data.new(*h_size).zero_().unsqueeze(0)
         self.state["coverage"] = None
 
     def map_state(self, fn):

@@ -224,8 +224,7 @@ class BeamSearch(DecodeStrategy):
             for j in finished_hyp:
                 if self.ratio > 0:
                     s = self.topk_scores[i, j] / (step + 1)
-                    if self.best_scores[b] < s:
-                        self.best_scores[b] = s
+                    self.best_scores[b] = max(self.best_scores[b], s)
                 self.hypotheses[b].append((
                     self.topk_scores[i, j],
                     predictions[i, j, 1:],  # Ignore start_token.
@@ -237,7 +236,7 @@ class BeamSearch(DecodeStrategy):
                 pred_len = self._memory_lengths[i] * self.ratio
                 finish_flag = ((self.topk_scores[i, 0] / pred_len)
                                <= self.best_scores[b]) or \
-                    self.is_finished[i].all()
+                        self.is_finished[i].all()
             else:
                 finish_flag = self.top_beam_finished[i] != 0
             if finish_flag and len(self.hypotheses[b]) >= self.n_best:
@@ -269,18 +268,18 @@ class BeamSearch(DecodeStrategy):
         self._batch_index = self._batch_index.index_select(0, non_finished)
         self.select_indices = self._batch_index.view(_B_new * self.beam_size)
         self.alive_seq = predictions.index_select(0, non_finished) \
-            .view(-1, self.alive_seq.size(-1))
+                .view(-1, self.alive_seq.size(-1))
         self.topk_scores = self.topk_scores.index_select(0, non_finished)
         self.topk_ids = self.topk_ids.index_select(0, non_finished)
         if self.alive_attn is not None:
             inp_seq_len = self.alive_attn.size(-1)
             self.alive_attn = attention.index_select(1, non_finished) \
-                .view(step - 1, _B_new * self.beam_size, inp_seq_len)
+                    .view(step - 1, _B_new * self.beam_size, inp_seq_len)
             if self._cov_pen:
                 self._coverage = self._coverage \
-                    .view(1, _B_old, self.beam_size, inp_seq_len) \
-                    .index_select(1, non_finished) \
-                    .view(1, _B_new * self.beam_size, inp_seq_len)
+                        .view(1, _B_old, self.beam_size, inp_seq_len) \
+                        .index_select(1, non_finished) \
+                        .view(1, _B_new * self.beam_size, inp_seq_len)
                 if self._stepwise_cov_pen:
                     self._prev_penalty = self._prev_penalty.index_select(
                         0, non_finished)

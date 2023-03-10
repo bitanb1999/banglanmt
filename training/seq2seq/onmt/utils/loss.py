@@ -240,14 +240,14 @@ class NMTLossCompute(LossComputeBase):
             std = attns.get("std", None)
             assert attns is not None
             assert std is not None, "lambda_coverage != 0.0 requires " \
-                "attention mechanism"
+                    "attention mechanism"
             assert coverage is not None, "lambda_coverage != 0.0 requires " \
-                "coverage attention"
+                    "coverage attention"
 
-            shard_state.update({
+            shard_state |= {
                 "std_attn": attns.get("std"),
-                "coverage_attn": coverage
-            })
+                "coverage_attn": coverage,
+            }
         return shard_state
 
     def _compute_loss(self, batch, output, target, std_attn=None,
@@ -316,8 +316,9 @@ def shards(state, shard_size, eval_only=False):
         # want a sequence of dictionaries of tensors.
         # First, unzip the dictionary into a sequence of keys and a
         # sequence of tensor-like sequences.
-        keys, values = zip(*((k, [v_chunk for v_chunk in v_split])
-                             for k, (_, v_split) in non_none.items()))
+        keys, values = zip(
+            *((k, list(v_split)) for k, (_, v_split) in non_none.items())
+        )
 
         # Now, yield a dictionary for each shard. The keys are always
         # the same. values is a sequence of length #keys where each

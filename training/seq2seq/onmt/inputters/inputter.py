@@ -42,8 +42,8 @@ Vocab.__setstate__ = _setstate
 
 
 def make_src(data, vocab):
-    src_size = max([t.size(0) for t in data])
-    src_vocab_size = max([t.max() for t in data]) + 1
+    src_size = max(t.size(0) for t in data)
+    src_vocab_size = max(t.max() for t in data) + 1
     alignment = torch.zeros(src_size, len(data), src_vocab_size)
     for i, sent in enumerate(data):
         for j, t in enumerate(sent):
@@ -52,7 +52,7 @@ def make_src(data, vocab):
 
 
 def make_tgt(data, vocab):
-    tgt_size = max([t.size(0) for t in data])
+    tgt_size = max(t.size(0) for t in data)
     alignment = torch.zeros(tgt_size, len(data)).long()
     for i, sent in enumerate(data):
         alignment[:sent.size(0), i] = sent
@@ -99,8 +99,6 @@ def get_fields(
         "Data type not implemented"
     assert not dynamic_dict or src_data_type == 'text', \
         'it is not possible to use dynamic_dict with non-text input'
-    fields = {}
-
     '''fields = {
         'src' = TextMultiField obj(basename='src', Field obj)
         'tgt' = TextMultiField obj(basename='tgt', Field obj)
@@ -117,8 +115,7 @@ def get_fields(
                         "pad": pad, "bos": None, "eos": None,
                         "truncate": src_truncate,
                         "base_name": "src"}
-    fields["src"] = fields_getters[src_data_type](**src_field_kwargs)
-
+    fields = {"src": fields_getters[src_data_type](**src_field_kwargs)}
     tgt_field_kwargs = {"n_feats": n_tgt_feats,
                         "include_lengths": False,
                         "pad": pad, "bos": bos, "eos": eos,
@@ -335,14 +332,16 @@ def _build_fields_vocab(fields, counters, data_type, share_vocab,
         tgt_multifield,
         counters,
         build_fv_args,
-        size_multiple=vocab_size_multiple if not share_vocab else 1)
+        size_multiple=1 if share_vocab else vocab_size_multiple,
+    )
     if data_type == 'text':
         src_multifield = fields["src"]
         _build_fv_from_multifield(
             src_multifield,
             counters,
             build_fv_args,
-            size_multiple=vocab_size_multiple if not share_vocab else 1)
+            size_multiple=1 if share_vocab else vocab_size_multiple,
+        )
         if share_vocab:
             # `tgt_vocab_size` is ignored when sharing vocabularies
             logger.info(" * merging src and tgt vocab...")
@@ -388,9 +387,7 @@ def build_vocab(train_dataset_files, fields, data_type, share_vocab,
     if src_vocab_path:
         try:
             logger.info("Using existing vocabulary...")
-            vocab = torch.load(src_vocab_path)
-            # return vocab to dump with standard name
-            return vocab
+            return torch.load(src_vocab_path)
         except torch.serialization.pickle.UnpicklingError:
             logger.info("Building vocab from text file...")
             # empty train_dataset_files so that vocab is only loaded from
@@ -414,7 +411,7 @@ def build_vocab(train_dataset_files, fields, data_type, share_vocab,
 
     for i, path in enumerate(train_dataset_files):
         dataset = torch.load(path)
-        logger.info(" * reloading %s." % path)
+        logger.info(f" * reloading {path}.")
         for ex in dataset.examples:
             for name, field in fields.items():
                 try:
@@ -481,14 +478,12 @@ def _read_vocab_file(vocab_path, tag):
         tag (str): Used for logging which vocab is being read.
     """
 
-    logger.info("Loading {} vocabulary from {}".format(tag, vocab_path))
+    logger.info(f"Loading {tag} vocabulary from {vocab_path}")
 
     if not os.path.exists(vocab_path):
-        raise RuntimeError(
-            "{} vocabulary not found at {}".format(tag, vocab_path))
-    else:
-        with codecs.open(vocab_path, 'r', 'utf-8') as f:
-            return [line.strip().split()[0] for line in f if line.strip()]
+        raise RuntimeError(f"{tag} vocabulary not found at {vocab_path}")
+    with codecs.open(vocab_path, 'r', 'utf-8') as f:
+        return [line.strip().split()[0] for line in f if line.strip()]
 
 
 def batch_iter(data, batch_size, batch_size_fn=None, batch_size_multiple=1):
@@ -539,8 +534,7 @@ def _pool(data, batch_size, batch_size_fn, batch_size_multiple,
             batch_size,
             batch_size_fn=batch_size_fn,
             batch_size_multiple=batch_size_multiple))
-        for b in random_shuffler(p_batch):
-            yield b
+        yield from random_shuffler(p_batch)
 
 
 class OrderedIterator(torchtext.data.Iterator):
@@ -577,12 +571,15 @@ class OrderedIterator(torchtext.data.Iterator):
                     self.pool_factor)
         else:
             self.batches = []
-            for b in batch_iter(
+            self.batches.extend(
+                sorted(b, key=self.sort_key)
+                for b in batch_iter(
                     self.data(),
                     self.batch_size,
                     batch_size_fn=self.batch_size_fn,
-                    batch_size_multiple=self.batch_size_multiple):
-                self.batches.append(sorted(b, key=self.sort_key))
+                    batch_size_multiple=self.batch_size_multiple,
+                )
+            )
 
     def __iter__(self):
         """
@@ -629,14 +626,15 @@ class MultipleDatasetIterator(object):
                  opt):
         self.index = -1
         self.iterables = []
-        for shard in train_shards:
-            self.iterables.append(
-                build_dataset_iter(shard, fields, opt, multi=True))
+        self.iterables.extend(
+            build_dataset_iter(shard, fields, opt, multi=True)
+            for shard in train_shards
+        )
         self.init_iterators = True
         self.weights = opt.data_weights
         self.batch_size = opt.batch_size
         self.batch_size_fn = max_tok_len \
-            if opt.batch_type == "tokens" else None
+                if opt.batch_type == "tokens" else None
         self.batch_size_multiple = 8 if opt.model_dtype == "fp16" else 1
         self.device = device
         # Temporarily load one shard to retrieve sort_key for data_type
@@ -652,7 +650,7 @@ class MultipleDatasetIterator(object):
             self.init_iterators = False
         for weight in self.weights:
             self.index = (self.index + 1) % len(self.iterators)
-            for i in range(weight):
+            for _ in range(weight):
                 yield self.iterators[self.index]
 
     def _iter_examples(self):
@@ -705,8 +703,8 @@ class DatasetLazyIter(object):
         self.swap_sides = swap_sides
 
     def _iter_dataset(self, path):
-        logger.info('Loading dataset from %s' % path)
-        
+        logger.info(f'Loading dataset from {path}')
+
         cur_dataset = torch.load(path)
 
         if self.swap_sides:
@@ -804,11 +802,10 @@ def build_dataset_iter(corpus_type, fields, opt, is_train=True, multi=False):
     to iterate over. We implement simple ordered iterator strategy here,
     but more sophisticated strategy like curriculum learning is ok too.
     """
-    dataset_paths = list(sorted(
-        glob.glob(opt.data + '.' + corpus_type + '.[0-9]*.pt')))
+    dataset_paths = list(sorted(glob.glob(f'{opt.data}.{corpus_type}.[0-9]*.pt')))
     if not dataset_paths:
         if is_train:
-            raise ValueError('Training data %s not found' % opt.data)
+            raise ValueError(f'Training data {opt.data} not found')
         else:
             return None
     if multi:

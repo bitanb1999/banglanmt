@@ -56,7 +56,7 @@ class TestData(unittest.TestCase):
             'valid', fields, src_reader, tgt_reader, opt)
 
         # Remove the generated *pt files.
-        for pt in glob.glob(SAVE_DATA_PREFIX + '*.pt'):
+        for pt in glob.glob(f'{SAVE_DATA_PREFIX}*.pt'):
             os.remove(pt)
         if hasattr(opt, 'src_vocab') and os.path.exists(opt.src_vocab):
             os.remove(opt.src_vocab)
@@ -81,11 +81,11 @@ def _add_test(param_setting, methodname):
         else:
             opt = self.opt
         getattr(self, methodname)(opt)
+
     if param_setting:
-        name = 'test_' + methodname + "_" + "_".join(
-            str(param_setting).split())
+        name = f'test_{methodname}_' + "_".join(str(param_setting).split())
     else:
-        name = 'test_' + methodname + '_standard'
+        name = f'test_{methodname}_standard'
     setattr(TestData, name, test_method)
     test_method.__name__ = name
 

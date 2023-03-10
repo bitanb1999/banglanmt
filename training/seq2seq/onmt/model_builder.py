@@ -47,7 +47,7 @@ def build_embeddings(opt, text_field, for_encoder=True):
     fix_word_vecs = opt.fix_word_vecs_enc if for_encoder \
         else opt.fix_word_vecs_dec
 
-    emb = Embeddings(
+    return Embeddings(
         word_vec_size=emb_dim,
         position_encoding=opt.position_encoding,
         feat_merge=opt.feat_merge,
@@ -59,9 +59,8 @@ def build_embeddings(opt, text_field, for_encoder=True):
         word_vocab_size=num_word_embeddings,
         feat_vocab_sizes=num_feat_embeddings,
         sparse=opt.optim == "sparseadam",
-        fix_word_vecs=fix_word_vecs
+        fix_word_vecs=fix_word_vecs,
     )
-    return emb
 
 
 def build_encoder(opt, embeddings):
@@ -71,8 +70,11 @@ def build_encoder(opt, embeddings):
         opt: the option in current environment.
         embeddings (Embeddings): vocab embeddings for this encoder.
     """
-    enc_type = opt.encoder_type if opt.model_type == "text" \
-        or opt.model_type == "vec" else opt.model_type
+    enc_type = (
+        opt.encoder_type
+        if opt.model_type in ["text", "vec"]
+        else opt.model_type
+    )
     return str2enc[enc_type].from_opt(opt, embeddings)
 
 
@@ -139,7 +141,7 @@ def build_base_model(model_opt, fields, gpu, checkpoint=None, gpu_id=None):
         model_opt.attention_dropout = model_opt.dropout
 
     # Build embeddings.
-    if model_opt.model_type == "text" or model_opt.model_type == "vec":
+    if model_opt.model_type in ["text", "vec"]:
         src_field = fields["src"]
         src_emb = build_embeddings(model_opt, src_field)
     else:

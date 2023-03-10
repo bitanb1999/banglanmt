@@ -94,10 +94,18 @@ class TransformerEncoder(EncoderBase):
 
         self.embeddings = embeddings
         self.transformer = nn.ModuleList(
-            [TransformerEncoderLayer(
-                d_model, heads, d_ff, dropout, attention_dropout,
-                max_relative_positions=max_relative_positions)
-             for i in range(num_layers)])
+            [
+                TransformerEncoderLayer(
+                    d_model,
+                    heads,
+                    d_ff,
+                    dropout,
+                    attention_dropout,
+                    max_relative_positions=max_relative_positions,
+                )
+                for _ in range(num_layers)
+            ]
+        )
         self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
 
     @classmethod

@@ -25,9 +25,13 @@ def average_models(model_files):
             for (k, v) in avg_generator.items():
                 avg_generator[k].mul_(i).add_(generator_weights[k]).div_(i + 1)
 
-    final = {"vocab": vocab, "opt": opt, "optim": None,
-             "generator": avg_generator, "model": avg_model}
-    return final
+    return {
+        "vocab": vocab,
+        "opt": opt,
+        "optim": None,
+        "generator": avg_generator,
+        "model": avg_model,
+    }
 
 
 def main():

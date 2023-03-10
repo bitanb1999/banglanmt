@@ -49,12 +49,10 @@ class VecDataReader(DataReaderBase):
             if not os.path.exists(vec_path):
                 vec_path = filename
 
-            assert os.path.exists(vec_path), \
-                'vec path %s not found' % filename
+            assert os.path.exists(vec_path), f'vec path {filename} not found'
 
             vec = np.load(vec_path)
-            yield {side: torch.from_numpy(vec),
-                   side + "_path": filename, "indices": i}
+            yield {side: torch.from_numpy(vec), f"{side}_path": filename, "indices": i}
 
 
 def vec_sort_key(ex):
@@ -95,7 +93,7 @@ class VecSeqField(Field):
         """
 
         assert not self.pad_first and not self.truncate_first \
-            and not self.fix_length and self.sequential
+                and not self.fix_length and self.sequential
         minibatch = list(minibatch)
         lengths = [x.size(0) for x in minibatch]
         max_len = max(lengths)
@@ -105,9 +103,7 @@ class VecSeqField(Field):
                            self.pad_token)
         for i, (feat, len_) in enumerate(zip(minibatch, lengths)):
             feats[i, 0:len_, :, :] = feat
-        if self.include_lengths:
-            return (feats, lengths)
-        return feats
+        return (feats, lengths) if self.include_lengths else feats
 
     def numericalize(self, arr, device=None):
         """Turn a batch of examples that use this field into a Variable.
@@ -139,11 +135,8 @@ class VecSeqField(Field):
         if self.sequential:
             arr = arr.contiguous()
 
-        if self.include_lengths:
-            return arr, lengths
-        return arr
+        return (arr, lengths) if self.include_lengths else arr
 
 
 def vec_fields(**kwargs):
-    vec = VecSeqField(pad_index=0, include_lengths=True)
-    return vec
+    return VecSeqField(pad_index=0, include_lengths=True)

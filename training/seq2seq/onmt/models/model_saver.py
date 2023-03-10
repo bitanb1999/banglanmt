@@ -8,13 +8,9 @@ from copy import deepcopy
 
 
 def build_model_saver(model_opt, opt, model, fields, optim):
-    model_saver = ModelSaver(opt.save_model,
-                             model,
-                             model_opt,
-                             fields,
-                             optim,
-                             opt.keep_checkpoint)
-    return model_saver
+    return ModelSaver(
+        opt.save_model, model, model_opt, fields, optim, opt.keep_checkpoint
+    )
 
 
 class ModelSaverBase(object):
@@ -106,12 +102,13 @@ class ModelSaver(ModelSaverBase):
 
         vocab = deepcopy(self.fields)
         for side in ["src", "tgt"]:
-            keys_to_pop = []
             if hasattr(vocab[side], "fields"):
                 unk_token = vocab[side].fields[0][1].vocab.itos[0]
-                for key, value in vocab[side].fields[0][1].vocab.stoi.items():
-                    if value == 0 and key != unk_token:
-                        keys_to_pop.append(key)
+                keys_to_pop = [
+                    key
+                    for key, value in vocab[side].fields[0][1].vocab.stoi.items()
+                    if value == 0 and key != unk_token
+                ]
                 for key in keys_to_pop:
                     vocab[side].fields[0][1].vocab.stoi.pop(key, None)
 

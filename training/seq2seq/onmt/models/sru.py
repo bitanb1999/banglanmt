@@ -408,7 +408,7 @@ class SRU_Compute(Function):
         c = x.new(*size)
         h = x.new(*size)
 
-        FUNC = SRU_FWD_FUNC if not self.bidirectional else SRU_BiFWD_FUNC
+        FUNC = SRU_BiFWD_FUNC if self.bidirectional else SRU_FWD_FUNC
         FUNC(args=[
             u.contiguous().data_ptr(),
             x.contiguous().data_ptr() if k_ == 3 else 0,
@@ -465,7 +465,7 @@ class SRU_Compute(Function):
         # Normal use
         grad_x = x.new(*x.size()) if k_ == 3 else None
 
-        FUNC = SRU_BWD_FUNC if not self.bidirectional else SRU_BiBWD_FUNC
+        FUNC = SRU_BiBWD_FUNC if self.bidirectional else SRU_BWD_FUNC
         FUNC(args=[
             u.contiguous().data_ptr(),
             x.contiguous().data_ptr() if k_ == 3 else 0,
@@ -526,13 +526,11 @@ class SRUCell(nn.Module):
             self.bias.data[n_out:].zero_().add_(bias_val)
 
     def forward(self, input, c0=None):
-        assert input.dim() == 2 or input.dim() == 3
+        assert input.dim() in [2, 3]
         n_in, n_out = self.n_in, self.n_out
         batch = input.size(-2)
         if c0 is None:
-            c0 = input.data.new(
-                batch, n_out if not self.bidirectional else n_out * 2
-            ).zero_()
+            c0 = input.data.new(batch, n_out * 2 if self.bidirectional else n_out).zero_()
 
         if self.training and (self.rnn_dropout > 0):
             mask = self.get_dropout_mask_((batch, n_in), self.rnn_dropout)
@@ -624,7 +622,7 @@ class SRU(nn.Module):
             zeros = input.data.new(
                 input.size(1), self.n_out * dir_
             ).zero_()
-            c0 = [zeros for i in range(self.depth)]
+            c0 = [zeros for _ in range(self.depth)]
         else:
             if isinstance(c0, tuple):
                 # RNNDecoderState wraps hidden as a tuple.
@@ -639,13 +637,5 @@ class SRU(nn.Module):
             prevx = h
             lstc.append(c)
 
-        if self.bidirectional:
-            # fh -> (layers*directions) x batch x dim
-            fh = torch.cat(lstc)
-        else:
-            fh = torch.stack(lstc)
-
-        if return_hidden:
-            return prevx, fh
-        else:
-            return prevx
+        fh = torch.cat(lstc) if self.bidirectional else torch.stack(lstc)
+        return (prevx, fh) if return_hidden else prevx

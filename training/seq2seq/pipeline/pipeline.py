@@ -27,23 +27,12 @@ def preprocess(args):
 
 def train(args):
     cmd = f'''
-        python \"{os.path.join(OPENNMTDIR, "train.py")}\" \
-            -data \"{os.path.join(args.output_dir, "Preprocessed", "processed")}\" \
-            -save_model \"{os.path.join(args.output_dir, "Models", args.model_prefix)}\" \
-            -layers {args.layers} -rnn_size {args.rnn_size} -word_vec_size {args.word_vec_size} -transformer_ff {args.transformer_ff} -heads {args.heads}  \
-			-encoder_type transformer -decoder_type transformer -position_encoding \
-            -train_steps {args.train_steps} -max_generator_batches 2 -dropout 0.1 \
-            -batch_size {args.train_batch_size} -batch_type tokens -normalization tokens -accum_count {args.gradient_accum} \
-            -optim adam -adam_beta2 0.998 -decay_method noam -warmup_steps {args.warmup_steps} -learning_rate {args.learning_rate} \
-            -max_grad_norm 0 -param_init 0  -param_init_glorot \
-			-share_decoder_embeddings  \
-            -label_smoothing 0.1 -valid_steps {args.valid_steps} -save_checkpoint_steps {args.save_checkpoint_steps} \
-            -world_size {args.world_size} -gpu_ranks {" ".join(args.gpu_ranks)} {"-train_from " + args.train_from if args.train_from else ""}  
+        python \"{os.path.join(OPENNMTDIR, "train.py")}\" \\n#            -data \"{os.path.join(args.output_dir, "Preprocessed", "processed")}\" \\n#            -save_model \"{os.path.join(args.output_dir, "Models", args.model_prefix)}\" \\n#            -layers {args.layers} -rnn_size {args.rnn_size} -word_vec_size {args.word_vec_size} -transformer_ff {args.transformer_ff} -heads {args.heads}  \\n#			-encoder_type transformer -decoder_type transformer -position_encoding \\n#            -train_steps {args.train_steps} -max_generator_batches 2 -dropout 0.1 \\n#            -batch_size {args.train_batch_size} -batch_type tokens -normalization tokens -accum_count {args.gradient_accum} \\n#            -optim adam -adam_beta2 0.998 -decay_method noam -warmup_steps {args.warmup_steps} -learning_rate {args.learning_rate} \\n#            -max_grad_norm 0 -param_init 0  -param_init_glorot \\n#			-share_decoder_embeddings  \\n#            -label_smoothing 0.1 -valid_steps {args.valid_steps} -save_checkpoint_steps {args.save_checkpoint_steps} \\n#            -world_size {args.world_size} -gpu_ranks {" ".join(args.gpu_ranks)} {f"-train_from {args.train_from}" if args.train_from else ""}  
     '''
     os.system(cmd)
 
 def average_models(args):
-    step_count = lambda p: int(re.search(r"_step_(\d+)", p).group(1))
+    step_count = lambda p: int(re.search(r"_step_(\d+)", p)[1])
     model_paths = sorted(
             glob.glob(os.path.join(args.output_dir, "Models", f"{args.model_prefix}*.pt")),
             key=step_count
@@ -119,8 +108,7 @@ def calculate_scores(args, dataset_category):
                 f".pred-{dataset_category}.txt.detok", 1
             )
         )
-        tgt_files = glob.glob(tgt_file_prefix)
-        if tgt_files:
+        if tgt_files := glob.glob(tgt_file_prefix):
             bleu_cmd = [
                 f"perl \"{os.path.join(OPENNMTDIR, 'tools', 'multi-bleu-detok.perl')}\"",
                 f"-lc {' '.join(tgt_files)} < {pred_file}"
@@ -130,7 +118,7 @@ def calculate_scores(args, dataset_category):
                 "|",
                 f"sacrebleu {' '.join(tgt_files)}"
             ]
-            
+
             try:
                 bleu_output = str(subprocess.check_output(" ".join(bleu_cmd), shell=True)).strip()
                 bleu_score = bleu_output.splitlines()[-1].split(",")[0].split("=")[1]
@@ -170,16 +158,20 @@ def write_scores(scores, output_path):
 def evaluate(args):
     if args.model_prefix:
         model_paths = sorted(
-            glob.glob(os.path.join(args.output_dir, "Models", f"{args.model_prefix}*.pt")),
-            key=lambda p: int(re.search(r"_step_(\d+)", p).group(1))
+            glob.glob(
+                os.path.join(
+                    args.output_dir, "Models", f"{args.model_prefix}*.pt"
+                )
+            ),
+            key=lambda p: int(re.search(r"_step_(\d+)", p)[1]),
         )
-        model_scores = {} 
+        model_scores = {}
         for model_path in model_paths:
             translate(model_path, "valid", args)
             processData(args, False)
             scores = calculate_scores(args, "valid")
             model_scores[os.path.basename(model_path)] = scores
-        
+
         write_scores(
             model_scores,
             os.path.join(
@@ -187,7 +179,7 @@ def evaluate(args):
                 "Reports", f"{args.model_prefix}.valid.{args.src_lang}2{args.tgt_lang}.log"
             )
         )
-    
+
     if args.eval_model:
         model_scores = {}
         translate(args.eval_model, "test", args)

@@ -343,9 +343,7 @@ def split_newline(text):
     but only return lines with content.
     """
     for line in text.split('\n'):
-        line = line.strip()
-
-        if line:
+        if line := line.strip():
             yield line
 
 
@@ -388,36 +386,34 @@ def _sentences(spans, join_on_lowercase, short_sentence_length):
     """Join spans back together into sentences as necessary."""
     last = None
     shorterThanATypicalSentence = lambda c, l: c < short_sentence_length or l < short_sentence_length
-    
+
     for current in _abbreviation_joiner(spans):
-        if last is not None:
-            
-            if (join_on_lowercase or BEFORE_LOWER.match(last)) and LOWER_WORD.match(current):
-                last = '%s%s' % (last, current)
-            elif shorterThanATypicalSentence(len(current), len(last)) and _is_open(last) and (
+        if last is None:
+            last = current
+
+        elif (join_on_lowercase or BEFORE_LOWER.match(last)) and LOWER_WORD.match(current):
+            last = f'{last}{current}'
+        elif shorterThanATypicalSentence(len(current), len(last)) and _is_open(last) and (
                 _is_not_opened(current) or last.endswith(' et al. ') or (
                     UPPER_CASE_END.search(last) and UPPER_CASE_START.match(current)
                 )
             ):
-                last = '%s%s' % (last, current)
-            elif shorterThanATypicalSentence(len(current), len(last)) and _is_open(last, '[]') and (
+            last = f'{last}{current}'
+        elif shorterThanATypicalSentence(len(current), len(last)) and _is_open(last, '[]') and (
                 _is_not_opened(current, '[]') or last.endswith(' et al. ') or (
                     UPPER_CASE_END.search(last) and UPPER_CASE_START.match(current)
                 )
             ):
-                last = '%s%s' % (last, current)
-            elif CONTINUATIONS.match(current):
-                last = '%s%s' % (last, current)
-            elif re.search(r'^[\"\']+$|^[\"\']+[ \t]*\n+.+', current.strip(), flags=re.UNICODE):
-                last = '%s%s' % (last.strip(), current.strip())
-            elif current.strip().startswith('-') or re.search(r'^[\"\']\s*[\-]', current.strip(), flags=re.UNICODE):
-                last = '%s%s' % (last.strip(), current.strip())
-            else:
-                yield last.strip()
-                last = current
+            last = f'{last}{current}'
+        elif CONTINUATIONS.match(current):
+            last = f'{last}{current}'
+        elif re.search(r'^[\"\']+$|^[\"\']+[ \t]*\n+.+', current.strip(), flags=re.UNICODE):
+            last = f'{last.strip()}{current.strip()}'
+        elif current.strip().startswith('-') or re.search(r'^[\"\']\s*[\-]', current.strip(), flags=re.UNICODE):
+            last = f'{last.strip()}{current.strip()}'
         else:
+            yield last.strip()
             last = current
-
     if last is not None:
         yield last.strip()
 
@@ -438,13 +434,19 @@ def _abbreviation_joiner(spans):
                 pass # join
             elif marker[0] == '.' and ABBREVIATIONS.search(prev_s):
                 pass # join
-            elif marker[0] == '.' and next_s and (
-                    LONE_WORD.match(next_s) or
-                    (ENDS_IN_DATE_DIGITS.search(prev_s) and MONTH.match(next_s)) or
-                    (MIDDLE_INITIAL_END.search(prev_s) and UPPER_WORD_START.match(next_s))
-                    ):
-                pass # join
-            else:
+            elif (
+                marker[0] != '.'
+                or not next_s
+                or not LONE_WORD.match(next_s)
+                and (
+                    not ENDS_IN_DATE_DIGITS.search(prev_s)
+                    or not MONTH.match(next_s)
+                )
+                and (
+                    not MIDDLE_INITIAL_END.search(prev_s)
+                    or not UPPER_WORD_START.match(next_s)
+                )
+            ):
                 yield makeSentence(segment, pos + 1)
                 segment = None
         elif segment is None:
@@ -515,7 +517,7 @@ def _is_not_opened(span_str, brackets='()'):
 
     return nesting > 0
 
-def segment_text(input_text, mode='single'): 
+def segment_text(input_text, mode='single'):
     """Simple api to segment text with most default values"""
     normal = to_unix_linebreaks
     if mode == 'single':
@@ -524,8 +526,7 @@ def segment_text(input_text, mode='single'):
     elif mode == 'multi':
         text_spans = rewrite_line_separators(normal(input_text), MAY_CROSS_ONE_LINE, short_sentence_length=SHORT_SENTENCE_LENGTH)
 
-    segments = [span.strip() for span in text_spans if span.strip()]
-    return segments
+    return [span.strip() for span in text_spans if span.strip()]
 
     
 
@@ -537,9 +538,12 @@ def main():
 
     single, multi = 0, 1
 
-    parser = ArgumentParser(usage='%(prog)s [--mode] [FILE ...]',
-                            description=__doc__, prog=path.basename(argv[0]),
-                            epilog='default encoding: ' + getdefaultencoding())
+    parser = ArgumentParser(
+        usage='%(prog)s [--mode] [FILE ...]',
+        description=__doc__,
+        prog=path.basename(argv[0]),
+        epilog=f'default encoding: {getdefaultencoding()}',
+    )
     parser.add_argument('files', metavar='FILE', nargs='*',
                         help='UTF-8 plain-text file(s); if absent, read from STDIN')
     parser.add_argument('--with-ids', action='store_true',

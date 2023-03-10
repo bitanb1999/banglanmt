@@ -23,38 +23,35 @@ def createFolders(args):
         if os.path.isdir(os.path.join(args.output_dir, dirname)):
             shutil.rmtree(os.path.join(args.output_dir, dirname))
 
-    if args.do_preprocess:
-        if os.path.isdir(os.path.join(args.output_dir, "Preprocessed")):
-            shutil.rmtree(os.path.join(args.output_dir, "Preprocessed"))
-    
+    if args.do_preprocess and os.path.isdir(
+        os.path.join(args.output_dir, "Preprocessed")
+    ):
+        shutil.rmtree(os.path.join(args.output_dir, "Preprocessed"))
+
     for dirname in required_dirnames:
         os.makedirs(os.path.join(args.output_dir, dirname), exist_ok=True)
 
 def _merge(args, data_type):
-    with open(os.path.join(args.output_dir, "data", f"src-{data_type}.txt"), 'w') as srcF, \
-        open(os.path.join(args.output_dir, "data", f"tgt-{data_type}.txt"), 'w') as tgtF:
+    with (open(os.path.join(args.output_dir, "data", f"src-{data_type}.txt"), 'w') as srcF, open(os.path.join(args.output_dir, "data", f"tgt-{data_type}.txt"), 'w') as tgtF):
         
         for src_file in glob.glob(os.path.join(args.input_dir, "data", f"*.{data_type}.{args.src_lang}")):
-            tgt_file_prefix = src_file.rsplit(f".{data_type}.{args.src_lang}", 1)[0] + f".{data_type}.{args.tgt_lang}"
-            tgt_files = glob.glob(tgt_file_prefix + "*")
-
-            if tgt_files:
+            tgt_file_prefix = f'{src_file.rsplit(f".{data_type}.{args.src_lang}", 1)[0]}.{data_type}.{args.tgt_lang}'
+            if tgt_files := glob.glob(f"{tgt_file_prefix}*"):
                 # when multiple references are present, pick the first one
                 tgt_file = tgt_files[0]
-                
+
                 with open(src_file) as f:
                     for line in f:
                         print(line.strip(), file=srcF)
-                
+
                 with open(tgt_file) as f:
                     for line in f:
                         print(line.strip(), file=tgtF)
 
 def _move(args, dataset_category):
     for src_file in glob.glob(os.path.join(args.input_dir, "data", f"*.{dataset_category}.{args.src_lang}")):
-        tgt_file_prefix = src_file.rsplit(f".{dataset_category}.{args.src_lang}", 1)[0] + f".{dataset_category}.{args.tgt_lang}"
-        tgt_files = glob.glob(tgt_file_prefix + "*")
-        if tgt_files:
+        tgt_file_prefix = f'{src_file.rsplit(f".{dataset_category}.{args.src_lang}", 1)[0]}.{dataset_category}.{args.tgt_lang}'
+        if tgt_files := glob.glob(f"{tgt_file_prefix}*"):
             shutil.copy(
                 src_file,
                 os.path.join(
@@ -107,26 +104,23 @@ def moveRawData(args):
     if args.do_train and args.do_preprocess:
         _merge(args, "train")
         _merge(args, "valid")
-        
+
         if not glob.glob(os.path.join(args.input_dir, "data", f"*.valid.{args.src_lang}")):       
             np.random.seed(3435)
             sampledCount = 0
-            
-            with open(os.path.join(args.output_dir, "data", "src-train.txt.backup"), 'w') as srcT, \
-                open(os.path.join(args.output_dir, "data", "tgt-train.txt.backup"), 'w') as tgtT, \
-                open(os.path.join(args.output_dir, "data", "src-valid.txt"), 'w') as srcV, \
-                open(os.path.join(args.output_dir, "data", "tgt-valid.txt"), 'w') as tgtV, \
-                open(os.path.join(args.output_dir, "data", "src-train.txt")) as srcO, \
-                open(os.path.join(args.output_dir, "data", "tgt-train.txt")) as tgtO:
+
+            with (open(os.path.join(args.output_dir, "data", "src-train.txt.backup"), 'w') as srcT, open(os.path.join(args.output_dir, "data", "tgt-train.txt.backup"), 'w') as tgtT, open(os.path.join(args.output_dir, "data", "src-valid.txt"), 'w') as srcV, open(os.path.join(args.output_dir, "data", "tgt-valid.txt"), 'w') as tgtV, open(os.path.join(args.output_dir, "data", "src-train.txt")) as srcO, open(os.path.join(args.output_dir, "data", "tgt-train.txt")) as tgtO):
                 
                 for srcLine, tgtLine in zip(srcO, tgtO):
-                    if sampledCount < args.validation_samples:
-                        if np.random.random() > .5:
-                            print(srcLine.strip(), file=srcV)
-                            print(tgtLine.strip(), file=tgtV)
-                            sampledCount += 1
-                            continue
-                    
+                    if (
+                        sampledCount < args.validation_samples
+                        and np.random.random() > 0.5
+                    ):
+                        print(srcLine.strip(), file=srcV)
+                        print(tgtLine.strip(), file=tgtV)
+                        sampledCount += 1
+                        continue
+
                     print(srcLine.strip(), file=srcT)
                     print(tgtLine.strip(), file=tgtT)
 
@@ -181,15 +175,15 @@ def spmOperate(args, fileType, tokenize):
                     os.remove(os.path.join(args.output_dir, 'temp', 'seed.txt'))
             else:
                 spm_cmd = [
-                    f"spm_encode --model=\"{modelName}\"",
-                    f"--output_format=piece",
-                    f"< \"{input_file}\" > \"{input_file}.tok\""
+                    f'spm_encode --model=\"{modelName}\"',
+                    "--output_format=piece",
+                    f'< \"{input_file}\" > \"{input_file}.tok\"',
                 ]
                 os.system(" ".join(spm_cmd))
 
             os.remove(input_file)
     else:
-        modelName = os.path.join(args.output_dir, "Preprocessed", f"tgtSPM.model")
+        modelName = os.path.join(args.output_dir, "Preprocessed", "tgtSPM.model")
         for input_file in glob.glob(os.path.join(args.output_dir, "Outputs", f'*{fileType}-*.tok')):
             spm_cmd = [
                 f"spm_decode --model=\"{modelName}\"",

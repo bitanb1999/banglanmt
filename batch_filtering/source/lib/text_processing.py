@@ -25,19 +25,19 @@ from subprocess import run, check_output, DEVNULL
 assert os.environ.get('LASER'), 'Please set the enviornment variable LASER'
 LASER = os.environ['LASER']
 
-FASTBPE = LASER + '/tools-external/fastBPE/fast'
-MOSES_BDIR = LASER + '/tools-external/moses-tokenizer/tokenizer/'
-MOSES_TOKENIZER = MOSES_BDIR + 'tokenizer.perl -q -no-escape -threads 20 -l '
-MOSES_LC = MOSES_BDIR + 'lowercase.perl'
-NORM_PUNC = MOSES_BDIR + 'normalize-punctuation.perl -l '
-DESCAPE = MOSES_BDIR + 'deescape-special-chars.perl'
-REM_NON_PRINT_CHAR = MOSES_BDIR + 'remove-non-printing-char.perl'
+FASTBPE = f'{LASER}/tools-external/fastBPE/fast'
+MOSES_BDIR = f'{LASER}/tools-external/moses-tokenizer/tokenizer/'
+MOSES_TOKENIZER = f'{MOSES_BDIR}tokenizer.perl -q -no-escape -threads 20 -l '
+MOSES_LC = f'{MOSES_BDIR}lowercase.perl'
+NORM_PUNC = f'{MOSES_BDIR}normalize-punctuation.perl -l '
+DESCAPE = f'{MOSES_BDIR}deescape-special-chars.perl'
+REM_NON_PRINT_CHAR = f'{MOSES_BDIR}remove-non-printing-char.perl'
 
 # Romanization (Greek only)
-ROMAN_LC = 'python3 ' + LASER + '/source/lib/romanize_lc.py -l '
+ROMAN_LC = f'python3 {LASER}/source/lib/romanize_lc.py -l '
 
 # Mecab tokenizer for Japanese
-MECAB = LASER + '/tools-external/mecab'
+MECAB = f'{LASER}/tools-external/mecab'
 
 
 ###############################################################################
@@ -50,16 +50,36 @@ def TokenLine(line, lang='en', lower_case=True, romanize=False):
     assert lower_case, 'lower case is needed by all the models'
     roman = lang if romanize else 'none'
     tok = check_output(
-            REM_NON_PRINT_CHAR
-            + '|' + NORM_PUNC + lang
-            + '|' + DESCAPE
-            + '|' + MOSES_TOKENIZER + lang
-            + ('| python3 -m jieba -d ' if lang == 'zh' else '')
-            + ('|' + MECAB + '/bin/mecab -O wakati -b 50000 ' if lang == 'ja' else '')
-            + '|' + ROMAN_LC + roman,
-            input=line,
-            encoding='UTF-8',
-            shell=True)
+        (
+            (
+                (
+                    (
+                        REM_NON_PRINT_CHAR
+                        + '|'
+                        + NORM_PUNC
+                        + lang
+                        + '|'
+                        + DESCAPE
+                        + '|'
+                        + MOSES_TOKENIZER
+                        + lang
+                        + ('| python3 -m jieba -d ' if lang == 'zh' else '')
+                        + (
+                            f'|{MECAB}/bin/mecab -O wakati -b 50000 '
+                            if lang == 'ja'
+                            else ''
+                        )
+                    )
+                    + '|'
+                )
+                + ROMAN_LC
+            )
+            + roman
+        ),
+        input=line,
+        encoding='UTF-8',
+        shell=True,
+    )
     return tok.strip()
 
 
@@ -83,25 +103,63 @@ def Token(inp_fname, out_fname, lang='en',
         if lang in ('jpn'):
             lang = 'ja'
         if verbose:
-            print(' - Tokenizer: {} in language {} {} {}'
-                  .format(os.path.basename(inp_fname), lang,
-                          '(gzip)' if gzip else '',
-                          '(de-escaped)' if descape else '',
-                          '(romanized)' if romanize else ''))
-        run(cat + inp_fname
-            + '|' + REM_NON_PRINT_CHAR
-            + '|' + NORM_PUNC + lang
-            + ('|' + DESCAPE if descape else '')
-            + '|' + MOSES_TOKENIZER + lang
-            + ('| python3 -m jieba -d ' if lang == 'zh' else '')
-            + ('|' + MECAB + '/bin/mecab -O wakati -b 50000 ' if lang == 'ja' else '')
-            + '|' + ROMAN_LC + roman
-            + '>' + out_fname,
-            env=dict(os.environ, LD_LIBRARY_PATH=MECAB + '/lib'),
-            shell=True)
+            print(
+                f" - Tokenizer: {os.path.basename(inp_fname)} in language {lang} {'(gzip)' if gzip else ''} {'(de-escaped)' if descape else ''}"
+            )
+        run(
+            (
+                (
+                    (
+                        (
+                            (
+                                (
+                                    (
+                                        (
+                                            (
+                                                cat
+                                                + inp_fname
+                                                + '|'
+                                                + REM_NON_PRINT_CHAR
+                                                + '|'
+                                                + NORM_PUNC
+                                                + lang
+                                                + (
+                                                    f'|{DESCAPE}'
+                                                    if descape
+                                                    else ''
+                                                )
+                                            )
+                                            + '|'
+                                        )
+                                        + MOSES_TOKENIZER
+                                    )
+                                    + lang
+                                )
+                                + (
+                                    '| python3 -m jieba -d '
+                                    if lang == 'zh'
+                                    else ''
+                                )
+                                + (
+                                    f'|{MECAB}/bin/mecab -O wakati -b 50000 '
+                                    if lang == 'ja'
+                                    else ''
+                                )
+                                + '|'
+                            )
+                            + ROMAN_LC
+                        )
+                        + roman
+                    )
+                    + '>'
+                )
+                + out_fname
+            ),
+            env=dict(os.environ, LD_LIBRARY_PATH=f'{MECAB}/lib'),
+            shell=True,
+        )
     elif not over_write and verbose:
-        print(' - Tokenizer: {} exists already'
-              .format(os.path.basename(out_fname), lang))
+        print(f' - Tokenizer: {os.path.basename(out_fname)} exists already')
 
 
 ###############################################################################
@@ -128,19 +186,18 @@ def BPEfastApply(inp_fname, out_fname, bpe_codes,
                  verbose=False, over_write=False):
     if not os.path.isfile(out_fname):
         if verbose:
-            print(' - fast BPE: processing {}'
-                  .format(os.path.basename(inp_fname)))
+            print(f' - fast BPE: processing {os.path.basename(inp_fname)}')
         bpe_vocab = bpe_codes.replace('fcodes', 'fvocab')
         if not os.path.isfile(bpe_vocab):
-            print(' - fast BPE: focab file not found {}'.format(bpe_vocab))
+            print(f' - fast BPE: focab file not found {bpe_vocab}')
             bpe_vocab = ''
-        run(FASTBPE + ' applybpe '
-            + out_fname + ' ' + inp_fname
-            + ' ' + bpe_codes
-            + ' ' + bpe_vocab, shell=True, stderr=DEVNULL)
+        run(
+            f'{FASTBPE} applybpe {out_fname} {inp_fname} {bpe_codes} {bpe_vocab}',
+            shell=True,
+            stderr=DEVNULL,
+        )
     elif not over_write and verbose:
-        print(' - fast BPE: {} exists already'
-              .format(os.path.basename(out_fname)))
+        print(f' - fast BPE: {os.path.basename(out_fname)} exists already')
 
 
 ###############################################################################
@@ -151,47 +208,46 @@ def BPEfastApply(inp_fname, out_fname, bpe_codes,
 
 def SplitLines(ifname, of_txt, of_sid):
     if os.path.isfile(of_txt):
-        print(' - SplitLines: {} already exists'.format(of_txt))
+        print(f' - SplitLines: {of_txt} already exists')
         return
     nl = 0
     nl_sp = 0
     maxw = 0
     maxw_sp = 0
-    fp_sid = open(of_sid, 'w')
-    fp_txt = open(of_txt, 'w')
-    with open(ifname, 'r') as ifp:
-        for line in ifp:
-            print('{:d}'.format(nl), file=fp_sid)  # store current sentence ID
-            nw = 0
-            words = line.strip().split()
-            maxw = max(maxw, len(words))
-            for i, word in enumerate(words):
-                if word == '.' and i != len(words)-1:
-                    if nw > 0:
-                        print(' {}'.format(word), file=fp_txt)
+    with open(of_sid, 'w') as fp_sid:
+        fp_txt = open(of_txt, 'w')
+        with open(ifname, 'r') as ifp:
+            for line in ifp:
+                print('{:d}'.format(nl), file=fp_sid)  # store current sentence ID
+                nw = 0
+                words = line.strip().split()
+                maxw = max(maxw, len(words))
+                for i, word in enumerate(words):
+                    if word == '.' and i != len(words)-1:
+                        if nw > 0:
+                            print(f' {word}', file=fp_txt)
+                        else:
+                            print(f'{word}', file=fp_txt)
+                        # store current sentence ID
+                        print('{:d}'.format(nl), file=fp_sid)
+                        nl_sp += 1
+                        maxw_sp = max(maxw_sp, nw+1)
+                        nw = 0
                     else:
-                        print('{}'.format(word), file=fp_txt)
-                    # store current sentence ID
-                    print('{:d}'.format(nl), file=fp_sid)
+                        if nw > 0:
+                            print(f' {word}', end='', file=fp_txt)
+                        else:
+                            print(f'{word}', end='', file=fp_txt)
+                        nw += 1
+                if nw > 0:
+                    # handle remainder of sentence
+                    print('', file=fp_txt)
                     nl_sp += 1
                     maxw_sp = max(maxw_sp, nw+1)
-                    nw = 0
-                else:
-                    if nw > 0:
-                        print(' {}'.format(word), end='', file=fp_txt)
-                    else:
-                        print('{}'.format(word), end='', file=fp_txt)
-                    nw += 1
-            if nw > 0:
-                # handle remainder of sentence
-                print('', file=fp_txt)
-                nl_sp += 1
-                maxw_sp = max(maxw_sp, nw+1)
-            nl += 1
-    print(' - Split sentences: {}'.format(ifname))
-    print(' -                  lines/max words: {:d}/{:d} -> {:d}/{:d}'
-          .format(nl, maxw, nl_sp, maxw_sp))
-    fp_sid.close()
+                nl += 1
+        print(f' - Split sentences: {ifname}')
+        print(' -                  lines/max words: {:d}/{:d} -> {:d}/{:d}'
+              .format(nl, maxw, nl_sp, maxw_sp))
     fp_txt.close()
 
 
@@ -203,7 +259,7 @@ def SplitLines(ifname, of_txt, of_sid):
 
 def JoinEmbed(if_embed, sid_fname, of_embed, dim=1024):
     if os.path.isfile(of_embed):
-        print(' - JoinEmbed: {} already exists'.format(of_embed))
+        print(f' - JoinEmbed: {of_embed} already exists')
         return
     # read the input embeddings
     em_in = np.fromfile(if_embed, dtype=np.float32, count=-1).reshape(-1, dim)

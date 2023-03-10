@@ -30,8 +30,7 @@ class DataReaderBase(object):
     def _read_file(cls, path):
         """Line-by-line read a file as bytes."""
         with open(path, "rb") as f:
-            for line in f:
-                yield line
+            yield from f
 
     @staticmethod
     def _raise_missing_dep(*missing_deps):

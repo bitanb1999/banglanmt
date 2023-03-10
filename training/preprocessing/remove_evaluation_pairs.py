@@ -10,12 +10,10 @@ from tqdm import tqdm
 
 def get_linepairs(args, data_type):
     linepairs = set()
-    
-    for src_file in glob.glob(os.path.join(args.input_dir, "data", f"*.{data_type}.{args.src_lang}")):
-        tgt_file_prefix = src_file.rsplit(f".{data_type}.{args.src_lang}", 1)[0] + f".{data_type}.{args.tgt_lang}"
-        tgt_files = glob.glob(tgt_file_prefix + "*")
 
-        if tgt_files:
+    for src_file in glob.glob(os.path.join(args.input_dir, "data", f"*.{data_type}.{args.src_lang}")):
+        tgt_file_prefix = f'{src_file.rsplit(f".{data_type}.{args.src_lang}", 1)[0]}.{data_type}.{args.tgt_lang}'
+        if tgt_files := glob.glob(f"{tgt_file_prefix}*"):
             for tgt_file in tgt_files:
                 with open(src_file) as fs, open(tgt_file) as ft:
                     for src_line, tgt_line in zip(fs, ft):
@@ -34,17 +32,14 @@ def main(args):
     )
 
     os.makedirs(args.output_dir, exist_ok=True)
-    with open(os.path.join(args.output_dir, f"corpus.train.{args.src_lang}"), 'w') as srcF, \
-        open(os.path.join(args.output_dir,  f"corpus.train.{args.tgt_lang}"), 'w') as tgtF:
+    with (open(os.path.join(args.output_dir, f"corpus.train.{args.src_lang}"), 'w') as srcF, open(os.path.join(args.output_dir,  f"corpus.train.{args.tgt_lang}"), 'w') as tgtF):
         
         for src_file in glob.glob(os.path.join(args.input_dir, "data", f"*.train.{args.src_lang}")):
-            tgt_file_prefix = src_file.rsplit(f".train.{args.src_lang}", 1)[0] + f".train.{args.tgt_lang}"
-            tgt_files = glob.glob(tgt_file_prefix + "*")
-
-            if tgt_files:
+            tgt_file_prefix = f'{src_file.rsplit(f".train.{args.src_lang}", 1)[0]}.train.{args.tgt_lang}'
+            if tgt_files := glob.glob(f"{tgt_file_prefix}*"):
                 # when multiple references are present, pick the first one
                 tgt_file = tgt_files[0]
-                
+
                 with open(src_file) as fs, open(tgt_file) as ft:
                     for src_line, tgt_line in zip(fs, ft):
                         src_line = src_line.strip()

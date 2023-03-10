@@ -208,9 +208,6 @@ class GlobalAttention(nn.Module):
             aeq(batch, batch_)
             aeq(dim, dim_)
             batch_, source_l_ = align_vectors.size()
-            aeq(batch, batch_)
-            aeq(source_l, source_l_)
-
         else:
             attn_h = attn_h.transpose(0, 1).contiguous()
             align_vectors = align_vectors.transpose(0, 1).contiguous()
@@ -221,7 +218,7 @@ class GlobalAttention(nn.Module):
             aeq(dim, dim_)
             target_l_, batch_, source_l_ = align_vectors.size()
             aeq(target_l, target_l_)
-            aeq(batch, batch_)
-            aeq(source_l, source_l_)
+        aeq(batch, batch_)
+        aeq(source_l, source_l_)
 
         return attn_h, align_vectors

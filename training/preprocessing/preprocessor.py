@@ -312,8 +312,7 @@ def normalize(text):
 
 def readFile(filename):
     with open(filename) as f:
-        lines = [line.strip() for line in f.readlines()]
-        return lines
+        return [line.strip() for line in f.readlines()]
 
 def readFilePair(bnFile, enFile):
     bnLines = readFile(bnFile)
@@ -333,19 +332,16 @@ def readReplacePatterns(filename):
     enPatternMap, bnPatternMap = {}, {}
 
     with open(filename) as f:
-        for line in f.readlines():
+        for line in f:
             try:
                 splitLine = line.rstrip('\n').split(":")
                 pattern = splitLine[0]
                 enReplacement = splitLine[1]
-                if len(splitLine) == 3:
-                    bnPatternMap[pattern] = splitLine[2]
-                else:
-                    bnPatternMap[pattern] = enReplacement
+                bnPatternMap[pattern] = splitLine[2] if len(splitLine) == 3 else enReplacement
                 enPatternMap[pattern] = enReplacement
             except:
                 continue
-    
+
     return enPatternMap, bnPatternMap
 
 def hasNonBangla(line):
@@ -414,14 +410,13 @@ def isValidProcessedPair(bnLine, enLine):
         return False 
 
     # check if either side contains only punctuations and whitespaces
-    
-    if (
-            re.sub(WHITESPACE_PUNCTATION, "", bnLine.strip(), flags=re.UNICODE) == "" or 
-            re.sub(WHITESPACE_PUNCTATION, "", enLine.strip(), flags=re.UNICODE) == ""
-        ):
-        return False
 
-    return True
+    return (
+        re.sub(WHITESPACE_PUNCTATION, "", bnLine.strip(), flags=re.UNICODE)
+        != ""
+        and re.sub(WHITESPACE_PUNCTATION, "", enLine.strip(), flags=re.UNICODE)
+        != ""
+    )
    
 def writeFilePairs(dir, validPairs, foreignPairs, savedPairs=None):
     os.makedirs(dir, exist_ok=True)
@@ -733,22 +728,22 @@ def transliterateHandler(bnLine, enLine, verbose):
 def ratioHandler(bnLine, enLine, verbose):
     newBnLine, newEnLine = bnLine, enLine
 
-    bnLowerThresh = .001
-    bnUpperThresh = 10.0
-
-    enLowerThresh = .001
-    enUpperThresh = 10.0
-
-
     bnNativeChars = countBanglaChars(bnLine)
     bnForeignChars = len(bnLine) - bnNativeChars - countNeutralChars(bnLine)
     bnRatio = bnForeignChars/bnNativeChars
-    
+
     enNativeChars = countEnglishChars(enLine)
     enForeignChars = len(enLine) - enNativeChars - countNeutralChars(enLine)
     enRatio = enForeignChars/enNativeChars
 
     if verbose:
+        bnLowerThresh = .001
+        bnUpperThresh = 10.0
+
+        enLowerThresh = .001
+        enUpperThresh = 10.0
+
+
         # if there is foreign text in the linepair after applying replacements
         if (
                 bnRatio >= bnUpperThresh or
@@ -885,10 +880,9 @@ def cleanSentencePairs(linePairs, options, output_dir, verbose=True):
 
 
 def col(id):
-	if id == 1: return "\033[32m"
-	if id == 2: return "\033[33m"
-	if id == 3: return "\033[31m"
-	return "\033[0m"
+    if id == 1: return "\033[32m"
+    if id == 2: return "\033[33m"
+    return "\033[31m" if id == 3 else "\033[0m"
 
 def cleanup(dirname):
     for sub_dir in ["Final", "tmp"]:
@@ -944,15 +938,15 @@ def main(args):
         os.makedirs(os.path.join(args.output_dir, "data"), exist_ok=True)
 
         linePair_list = []
-        for bnFile in glob.glob(os.path.join(args.input_dir, "**", f"*.bn"), recursive=True):
-            enFile = bnFile[:-3] + ".en"
+        for bnFile in glob.glob(os.path.join(args.input_dir, "**", "*.bn"), recursive=True):
+            enFile = f"{bnFile[:-3]}.en"
             if not os.path.isfile(enFile):
                 continue
             linePair_list.append(readFilePair(bnFile, enFile))
-        
+
         linePairs = list(chain.from_iterable(linePair_list))
 
-        print(col(2) + 'Starting Stage 1...' + col(0))
+        print(f'{col(2)}Starting Stage 1...{col(0)}')
         cleanSentencePairs(linePairs, {'pattern': True}, args.output_dir)
 
         shutil.copy(
@@ -972,14 +966,14 @@ def main(args):
             os.path.join(args.output_dir, "data", "stage1Filtered.en")
         )
 
-        print(col(2) + 'Starting Stage 2...' + col(0))
+        print(f'{col(2)}Starting Stage 2...{col(0)}')
         cleanup(args.output_dir)
         linePairs = readFilePair(
             os.path.join(args.output_dir, "data", "stage1Filtered.bn"),
             os.path.join(args.output_dir, "data", "stage1Filtered.en")
         )
         cleanSentencePairs(linePairs, {'ratio': True}, args.output_dir)
-        
+
         shutil.copy(
             os.path.join(args.output_dir, "tmp", "ratio", "cleaned.bn"),
             os.path.join(args.output_dir, "data", "data2.bn")
@@ -998,7 +992,7 @@ def main(args):
         )
 
 
-        print(col(2) + 'Starting Stage 3...' + col(0))
+        print(f'{col(2)}Starting Stage 3...{col(0)}')
         cleanup(args.output_dir)
         linePairs = readFilePair(
             os.path.join(args.output_dir, "data", "stage2Filtered.bn"),
@@ -1013,7 +1007,7 @@ def main(args):
             },
             args.output_dir
         )
-        
+
         shutil.copy(
             os.path.join(args.output_dir, "Final", "cleaned.bn"),
             os.path.join(args.output_dir, "data", "data3.bn")
@@ -1022,7 +1016,7 @@ def main(args):
             os.path.join(args.output_dir, "Final", "cleaned.en"),
             os.path.join(args.output_dir, "data", "data3.en")
         )
-        
+
         _merge(
             [
                 os.path.join(args.output_dir, "data", "data1.bn"),

@@ -20,9 +20,9 @@ def build_report_manager(opt, gpu_rank):
     else:
         writer = None
 
-    report_mgr = ReportMgr(opt.report_every, start_time=-1,
-                           tensorboard_writer=writer)
-    return report_mgr
+    return ReportMgr(
+        opt.report_every, start_time=-1, tensorboard_writer=writer
+    )
 
 
 class ReportMgrBase(object):

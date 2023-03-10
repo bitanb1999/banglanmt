@@ -46,10 +46,7 @@ class PositionalEncoding(nn.Module):
         """
 
         emb = emb * math.sqrt(self.dim)
-        if step is None:
-            emb = emb + self.pe[:emb.size(0)]
-        else:
-            emb = emb + self.pe[step]
+        emb = emb + self.pe[:emb.size(0)] if step is None else emb + self.pe[step]
         emb = self.dropout(emb)
         return emb
 
@@ -218,11 +215,10 @@ class Embeddings(nn.Module):
                 warnings.warn("Not merging with sum and positive "
                               "feat_vec_size, but got non-default "
                               "feat_vec_exponent. It will be unused.")
-        else:
-            if feat_vec_exponent <= 0:
-                raise ValueError("Using feat_vec_exponent to determine "
-                                 "feature vec size, but got feat_vec_exponent "
-                                 "less than or equal to 0.")
+        elif feat_vec_exponent <= 0:
+            raise ValueError("Using feat_vec_exponent to determine "
+                             "feature vec size, but got feat_vec_exponent "
+                             "less than or equal to 0.")
         n_feats = len(feat_vocab_sizes)
         if n_feats != len(feat_padding_idx):
             raise ValueError("Got unequal number of feat_vocab_sizes and "

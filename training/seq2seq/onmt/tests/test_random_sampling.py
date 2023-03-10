@@ -110,15 +110,15 @@ class TestRandomSampling(unittest.TestCase):
                             self.BLOCKED_SCORE).any())
 
     def test_doesnt_predict_eos_if_shorter_than_min_len(self):
+        n_words = 100
+        min_length = 5
+        eos_idx = 2
         # batch 0 will always predict EOS. The other batches will predict
         # non-eos scores.
         for batch_sz in [1, 3]:
-            n_words = 100
             _non_eos_idxs = [47]
             valid_score_dist = torch.log_softmax(torch.tensor(
                 [6., 5.]), dim=0)
-            min_length = 5
-            eos_idx = 2
             lengths = torch.randint(0, 30, (batch_sz,))
             samp = RandomSampling(
                 0, 1, 2, batch_sz, torch.device("cpu"), min_length,
@@ -150,15 +150,15 @@ class TestRandomSampling(unittest.TestCase):
                     break
 
     def test_returns_correct_scores_deterministic(self):
+        n_words = 100
+        eos_idx = 2
         for batch_sz in [1, 13]:
             for temp in [1., 3.]:
-                n_words = 100
                 _non_eos_idxs = [47, 51, 13, 88, 99]
                 valid_score_dist_1 = torch.log_softmax(torch.tensor(
                     [6., 5., 4., 3., 2., 1.]), dim=0)
                 valid_score_dist_2 = torch.log_softmax(torch.tensor(
                     [6., 1.]), dim=0)
-                eos_idx = 2
                 lengths = torch.randint(0, 30, (batch_sz,))
                 samp = RandomSampling(
                     0, 1, 2, batch_sz, torch.device("cpu"), 0,
@@ -217,20 +217,20 @@ class TestRandomSampling(unittest.TestCase):
                 self.assertTrue(samp.is_finished.eq(1).all())
                 samp.update_finished()
                 for b in range(batch_sz):
-                    if b != 0 and b != 8:
+                    if b not in [0, 8]:
                         self.assertEqual(samp.scores[b], [0])
                 self.assertTrue(samp.done)
 
     def test_returns_correct_scores_non_deterministic(self):
+        n_words = 100
+        eos_idx = 2
         for batch_sz in [1, 13]:
             for temp in [1., 3.]:
-                n_words = 100
                 _non_eos_idxs = [47, 51, 13, 88, 99]
                 valid_score_dist_1 = torch.log_softmax(torch.tensor(
                     [6., 5., 4., 3., 2., 1.]), dim=0)
                 valid_score_dist_2 = torch.log_softmax(torch.tensor(
                     [6., 1.]), dim=0)
-                eos_idx = 2
                 lengths = torch.randint(0, 30, (batch_sz,))
                 samp = RandomSampling(
                     0, 1, 2, batch_sz, torch.device("cpu"), 0,
@@ -308,6 +308,6 @@ class TestRandomSampling(unittest.TestCase):
                               "increase the range of the for-loop.")
 
                 for b in range(batch_sz):
-                    if b != 0 and b != 8:
+                    if b not in [0, 8]:
                         self.assertEqual(samp.scores[b], [0])
                 self.assertTrue(samp.done)

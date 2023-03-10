@@ -45,7 +45,7 @@ class AudioEncoder(EncoderBase):
         self.dec_rnn_size = dec_rnn_size
         input_size = int(math.floor((sample_rate * window_size) / 2) + 1)
         enc_pooling = enc_pooling.split(',')
-        assert len(enc_pooling) == enc_layers or len(enc_pooling) == 1
+        assert len(enc_pooling) in [enc_layers, 1]
         if len(enc_pooling) == 1:
             enc_pooling = enc_pooling * enc_layers
         enc_pooling = [int(p) for p in enc_pooling]
@@ -53,14 +53,11 @@ class AudioEncoder(EncoderBase):
 
         if type(dropout) is not list:
             dropout = [dropout]
-        if max(dropout) > 0:
-            self.dropout = nn.Dropout(dropout[0])
-        else:
-            self.dropout = None
+        self.dropout = nn.Dropout(dropout[0]) if max(dropout) > 0 else None
         self.W = nn.Linear(enc_rnn_size, dec_rnn_size, bias=False)
         self.batchnorm_0 = nn.BatchNorm1d(enc_rnn_size, affine=True)
         self.rnn_0, self.no_pack_padded_seq = \
-            rnn_factory(rnn_type,
+                rnn_factory(rnn_type,
                         input_size=input_size,
                         hidden_size=enc_rnn_size_real,
                         num_layers=1,
@@ -70,7 +67,7 @@ class AudioEncoder(EncoderBase):
         for l in range(enc_layers - 1):
             batchnorm = nn.BatchNorm1d(enc_rnn_size, affine=True)
             rnn, _ = \
-                rnn_factory(rnn_type,
+                    rnn_factory(rnn_type,
                             input_size=enc_rnn_size,
                             hidden_size=enc_rnn_size_real,
                             num_layers=1,
@@ -102,7 +99,7 @@ class AudioEncoder(EncoderBase):
         """See :func:`onmt.encoders.encoder.EncoderBase.forward()`"""
         batch_size, _, nfft, t = src.size()
         src = src.transpose(0, 1).transpose(0, 3).contiguous() \
-                 .view(t, batch_size, nfft)
+                     .view(t, batch_size, nfft)
         orig_lengths = lengths
         lengths = lengths.view(-1).tolist()
 
@@ -133,11 +130,7 @@ class AudioEncoder(EncoderBase):
 
         state = memory_bank.new_full((self.dec_layers * self.num_directions,
                                       batch_size, self.dec_rnn_size_real), 0)
-        if self.rnn_type == 'LSTM':
-            # The encoder hidden is  (layers*directions) x batch x dim.
-            encoder_final = (state, state)
-        else:
-            encoder_final = state
+        encoder_final = (state, state) if self.rnn_type == 'LSTM' else state
         return encoder_final, memory_bank, orig_lengths.new_tensor(lengths)
 
     def update_dropout(self, dropout):

@@ -47,7 +47,7 @@ class EnsembleDecoder(DecoderBase):
     """Dummy Decoder that delegates to individual real Decoders."""
     def __init__(self, model_decoders):
         model_decoders = nn.ModuleList(model_decoders)
-        attentional = any([dec.attentional for dec in model_decoders])
+        attentional = any(dec.attentional for dec in model_decoders)
         super(EnsembleDecoder, self).__init__(attentional)
         self.model_decoders = model_decoders
 
@@ -66,11 +66,12 @@ class EnsembleDecoder(DecoderBase):
         return EnsembleDecoderOutput(dec_outs), mean_attns
 
     def combine_attns(self, attns):
-        result = {}
-        for key in attns[0].keys():
-            result[key] = torch.stack(
-                [attn[key] for attn in attns if attn[key] is not None]).mean(0)
-        return result
+        return {
+            key: torch.stack(
+                [attn[key] for attn in attns if attn[key] is not None]
+            ).mean(0)
+            for key in attns[0].keys()
+        }
 
     def init_state(self, src, memory_bank, enc_hidden):
         """ See :obj:`RNNDecoderBase.init_state()` """

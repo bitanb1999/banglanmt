@@ -32,11 +32,13 @@ class CNNDecoder(DecoderBase):
         input_size = self.embeddings.embedding_size
         self.linear = nn.Linear(input_size, hidden_size)
         self.conv_layers = nn.ModuleList(
-            [GatedConv(hidden_size, cnn_kernel_width, dropout, True)
-             for i in range(num_layers)]
+            [
+                GatedConv(hidden_size, cnn_kernel_width, dropout, True)
+                for _ in range(num_layers)
+            ]
         )
         self.attn_layers = nn.ModuleList(
-            [ConvMultiStepAttention(hidden_size) for i in range(num_layers)]
+            [ConvMultiStepAttention(hidden_size) for _ in range(num_layers)]
         )
 
         # CNNDecoder has its own attention mechanism.

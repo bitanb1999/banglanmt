@@ -134,18 +134,14 @@ class TestBeamSearch(unittest.TestCase):
                     word_probs[2::beam_sz, repeat_idx_ignored] = 0
                 attns = torch.randn(1, batch_sz * beam_sz, 53)
                 beam.advance(word_probs, attns)
+                self.assertFalse(beam.topk_log_probs[:, 0].eq(
+                    self.BLOCKED_SCORE).any())
                 if i <= ngram_repeat:
-                    self.assertFalse(beam.topk_log_probs[:, 0].eq(
-                        self.BLOCKED_SCORE).any())
                     self.assertFalse(beam.topk_log_probs[:, 1].eq(
                         self.BLOCKED_SCORE).any())
                     self.assertFalse(beam.topk_log_probs[:, 2].eq(
                         self.BLOCKED_SCORE).any())
                 else:
-                    # now beam 0 dies, beam 1 -> beam 0, beam 2 -> beam 1
-                    # and the rest die
-                    self.assertFalse(beam.topk_log_probs[:, 0].eq(
-                        self.BLOCKED_SCORE).any())
                     # since all preds after i=0 are 0, we can check
                     # that the beam is the correct idx by checking that
                     # the curr score is the initial score
@@ -159,16 +155,16 @@ class TestBeamSearch(unittest.TestCase):
                             .repeat(batch_sz, beam_sz - 2)))
 
     def test_doesnt_predict_eos_if_shorter_than_min_len(self):
+        beam_sz = 5
+        n_words = 100
+        min_length = 5
+        eos_idx = 2
         # beam 0 will always predict EOS. The other beams will predict
         # non-eos scores.
         for batch_sz in [1, 3]:
-            beam_sz = 5
-            n_words = 100
             _non_eos_idxs = [47, 51, 13, 88, 99]
             valid_score_dist = torch.log_softmax(torch.tensor(
                 [6., 5., 4., 3., 2., 1.]), dim=0)
-            min_length = 5
-            eos_idx = 2
             lengths = torch.randint(0, 30, (batch_sz,))
             beam = BeamSearch(beam_sz, batch_sz, 0, 1, 2, 2,
                               torch.device("cpu"), GlobalScorerStub(),
@@ -179,16 +175,14 @@ class TestBeamSearch(unittest.TestCase):
                 # non-interesting beams are going to get dummy values
                 word_probs = torch.full(
                     (batch_sz * beam_sz, n_words), -float('inf'))
+                # "best" prediction is eos - that should be blocked
+                word_probs[0::beam_sz, eos_idx] = valid_score_dist[0]
                 if i == 0:
-                    # "best" prediction is eos - that should be blocked
-                    word_probs[0::beam_sz, eos_idx] = valid_score_dist[0]
                     # include at least beam_sz predictions OTHER than EOS
                     # that are greater than -1e20
                     for j, score in zip(_non_eos_idxs, valid_score_dist[1:]):
                         word_probs[0::beam_sz, j] = score
                 else:
-                    # predict eos in beam 0
-                    word_probs[0::beam_sz, eos_idx] = valid_score_dist[0]
                     # provide beam_sz other good predictions
                     for k, (j, score) in enumerate(
                             zip(_non_eos_idxs, valid_score_dist[1:])):
@@ -200,7 +194,7 @@ class TestBeamSearch(unittest.TestCase):
                 beam.advance(word_probs, attns)
                 if i < min_length:
                     expected_score_dist = \
-                        (i+1) * valid_score_dist[1:].unsqueeze(0)
+                            (i+1) * valid_score_dist[1:].unsqueeze(0)
                     self.assertTrue(
                         beam.topk_log_probs.allclose(
                             expected_score_dist))
@@ -208,10 +202,6 @@ class TestBeamSearch(unittest.TestCase):
                     # now the top beam has ended and no others have
                     self.assertTrue(beam.is_finished[:, 0].eq(1).all())
                     self.assertTrue(beam.is_finished[:, 1:].eq(0).all())
-                else:  # i > min_length
-                    # not of interest, but want to make sure it keeps running
-                    # since only beam 0 terminates and n_best = 2
-                    pass
 
     def test_beam_is_done_when_n_best_beams_eos_using_min_length(self):
         # this is also a test that when block_ngram_repeat=0,

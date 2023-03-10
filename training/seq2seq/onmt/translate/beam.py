@@ -242,20 +242,16 @@ class GNMTGlobalScorer(object):
             if alpha != 0:
                 warnings.warn("Non-default `alpha` with no length penalty. "
                               "`alpha` has no effect.")
-        else:
-            # using some length penalty
-            if length_penalty == "wu" and alpha == 0.:
-                warnings.warn("Using length penalty Wu with alpha==0 "
-                              "is equivalent to using length penalty none.")
+        elif length_penalty == "wu" and alpha == 0.:
+            warnings.warn("Using length penalty Wu with alpha==0 "
+                          "is equivalent to using length penalty none.")
         if coverage_penalty is None or coverage_penalty == "none":
             if beta != 0:
                 warnings.warn("Non-default `beta` with no coverage penalty. "
                               "`beta` has no effect.")
-        else:
-            # using some coverage penalty
-            if beta == 0.:
-                warnings.warn("Non-default coverage penalty with beta==0 "
-                              "is equivalent to using coverage penalty none.")
+        elif beta == 0.:
+            warnings.warn("Non-default coverage penalty with beta==0 "
+                          "is equivalent to using coverage penalty none.")
 
     def score(self, beam, logprobs):
         """Rescore a prediction based on penalty functions."""

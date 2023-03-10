@@ -67,12 +67,10 @@ class TestBeam(unittest.TestCase):
                 word_probs[1, repeat_idx + i + 1] = 0
             attns = torch.randn(beam_sz)
             beam.advance(word_probs, attns)
+            self.assertFalse(beam.scores[0].eq(self.BLOCKED_SCORE))
             if i <= ngram_repeat:
-                self.assertFalse(beam.scores[0].eq(self.BLOCKED_SCORE))
                 self.assertFalse(beam.scores[1].eq(self.BLOCKED_SCORE))
             else:
-                # now beam 0 dies (along with the others), beam 1 -> beam 0
-                self.assertFalse(beam.scores[0].eq(self.BLOCKED_SCORE))
                 self.assertTrue(
                     beam.scores[1:].equal(torch.tensor(
                         [self.BLOCKED_SCORE] * (beam_sz - 1))))
@@ -84,10 +82,16 @@ class TestBeam(unittest.TestCase):
         repeat_idx = 47  # will be repeated and should be blocked
         repeat_idx_ignored = 7  # will be repeated and should not be blocked
         ngram_repeat = 3
-        beam = Beam(beam_sz, 0, 1, 2, n_best=2,
-                    exclusion_tokens=set([repeat_idx_ignored]),
-                    global_scorer=GlobalScorerStub(),
-                    block_ngram_repeat=ngram_repeat)
+        beam = Beam(
+            beam_sz,
+            0,
+            1,
+            2,
+            n_best=2,
+            exclusion_tokens={repeat_idx_ignored},
+            global_scorer=GlobalScorerStub(),
+            block_ngram_repeat=ngram_repeat,
+        )
         for i in range(ngram_repeat + 4):
             # non-interesting beams are going to get dummy values
             word_probs = torch.full((beam_sz, n_words), -float('inf'))
@@ -104,14 +108,11 @@ class TestBeam(unittest.TestCase):
                 word_probs[2, repeat_idx_ignored] = 0
             attns = torch.randn(beam_sz)
             beam.advance(word_probs, attns)
+            self.assertFalse(beam.scores[0].eq(self.BLOCKED_SCORE))
             if i <= ngram_repeat:
-                self.assertFalse(beam.scores[0].eq(self.BLOCKED_SCORE))
                 self.assertFalse(beam.scores[1].eq(self.BLOCKED_SCORE))
                 self.assertFalse(beam.scores[2].eq(self.BLOCKED_SCORE))
             else:
-                # now beam 0 dies, beam 1 -> beam 0, beam 2 -> beam 1
-                # and the rest die
-                self.assertFalse(beam.scores[0].eq(self.BLOCKED_SCORE))
                 # since all preds after i=0 are 0, we can check
                 # that the beam is the correct idx by checking that
                 # the curr score is the initial score
@@ -142,16 +143,14 @@ class TestBeam(unittest.TestCase):
         for i in range(min_length + 4):
             # non-interesting beams are going to get dummy values
             word_probs = torch.full((beam_sz, n_words), -float('inf'))
+            # "best" prediction is eos - that should be blocked
+            word_probs[0, eos_idx] = valid_score_dist[0]
             if i == 0:
-                # "best" prediction is eos - that should be blocked
-                word_probs[0, eos_idx] = valid_score_dist[0]
                 # include at least beam_sz predictions OTHER than EOS
                 # that are greater than -1e20
                 for j, score in zip(_non_eos_idxs, valid_score_dist[1:]):
                     word_probs[0, j] = score
             else:
-                # predict eos in beam 0
-                word_probs[0, eos_idx] = valid_score_dist[0]
                 # provide beam_sz other good predictions
                 for k, (j, score) in enumerate(
                         zip(_non_eos_idxs, valid_score_dist[1:])):
@@ -169,10 +168,6 @@ class TestBeam(unittest.TestCase):
                 self.assertEqual(beam.finished[0][1], beam.min_length + 1)
                 # first beam finished was 0
                 self.assertEqual(beam.finished[0][2], 0)
-            else:  # i > min_length
-                # not of interest, but want to make sure it keeps running
-                # since only beam 0 terminates and n_best = 2
-                pass
 
     def test_beam_is_done_when_n_best_beams_eos_using_min_length(self):
         # this is also a test that when block_ngram_repeat=0,

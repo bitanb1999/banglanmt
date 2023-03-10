@@ -769,5 +769,5 @@ class DeprecateAction(configargparse.Action):
 
     def __call__(self, parser, namespace, values, flag_name):
         help = self.help if self.help is not None else ""
-        msg = "Flag '%s' is deprecated. %s" % (flag_name, help)
+        msg = f"Flag '{flag_name}' is deprecated. {help}"
         raise configargparse.ArgumentTypeError(msg)

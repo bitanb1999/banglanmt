@@ -84,7 +84,7 @@ def build_torch_optimizer(model, opt):
             lr=opt.learning_rate,
             betas=betas)
     else:
-        raise ValueError('Invalid optimizer type: ' + opt.optim)
+        raise ValueError(f'Invalid optimizer type: {opt.optim}')
 
     if opt.model_dtype == 'fp16':
         import apex
@@ -285,10 +285,7 @@ class Optimizer(object):
             learning_rate_decay_fn=make_learning_rate_decay_fn(optim_opt),
             max_grad_norm=optim_opt.max_grad_norm)
         if opt.model_dtype == "fp16":
-            if opt.optim == "fusedadam":
-                optimizer._fp16 = "legacy"
-            else:
-                optimizer._fp16 = "amp"
+            optimizer._fp16 = "legacy" if opt.optim == "fusedadam" else "amp"
         if optim_state_dict:
             optimizer.load_state_dict(optim_state_dict)
         return optimizer
@@ -409,8 +406,6 @@ class AdaFactor(torch.optim.Optimizer):
             return True, True
         elif len(shape) == 2:
             return True, False
-        elif len(shape) == 2 and (shape[0] == 1 or shape[1] == 1):
-            return False, False
         else:
             return False, False
 
@@ -418,9 +413,7 @@ class AdaFactor(torch.optim.Optimizer):
         return sqrt(torch.mean(x.pow(2)))
 
     def step(self, closure=None):
-        loss = None
-        if closure is not None:
-            loss = closure()
+        loss = closure() if closure is not None else None
         for group in self.param_groups:
             for p in group['params']:
                 if p.grad is None:
@@ -435,7 +428,7 @@ class AdaFactor(torch.optim.Optimizer):
                 new_shape = p.data.size()
                 if is_need_reshape and group['enable_factorization']:
                     new_shape, old_shape = \
-                        self._experimental_reshape(p.data.size())
+                            self._experimental_reshape(p.data.size())
                     grad = grad.view(new_shape)
 
                 state = self.state[p]
@@ -448,11 +441,11 @@ class AdaFactor(torch.optim.Optimizer):
 
                     if is_matrix and group['enable_factorization']:
                         state['exp_avg_sq_R'] = \
-                            torch.zeros((1, new_shape[1]),
+                                torch.zeros((1, new_shape[1]),
                                         dtype=torch.float32,
                                         device=p.grad.device)
                         state['exp_avg_sq_C'] = \
-                            torch.zeros((new_shape[0], 1),
+                                torch.zeros((new_shape[0], 1),
                                         dtype=torch.float32,
                                         device=p.grad.device)
                     else:
@@ -461,7 +454,7 @@ class AdaFactor(torch.optim.Optimizer):
                                                           device=p.grad.device)
                     if group['ams_grad']:
                         state['exp_avg_sq_hat'] = \
-                            torch.zeros(new_shape, dtype=torch.float32,
+                                torch.zeros(new_shape, dtype=torch.float32,
                                         device=p.grad.device)
 
                 if group['enable_momentum']:
@@ -483,34 +476,34 @@ class AdaFactor(torch.optim.Optimizer):
                 if group['enable_momentum']:
                     if group['non_constant_decay']:
                         beta1_t = group['beta1'] * \
-                                  (1 - group['beta1'] ** (state['step'] - 1)) \
-                                  / (1 - group['beta1'] ** state['step'])
+                                      (1 - group['beta1'] ** (state['step'] - 1)) \
+                                      / (1 - group['beta1'] ** state['step'])
                     else:
                         beta1_t = group['beta1']
                     exp_avg.mul_(beta1_t).add_(1 - beta1_t, grad)
 
                 if group['non_constant_decay']:
                     beta2_t = group['beta2'] * \
-                              (1 - group['beta2'] ** (state['step'] - 1)) / \
-                              (1 - group['beta2'] ** state['step'])
+                                  (1 - group['beta2'] ** (state['step'] - 1)) / \
+                                  (1 - group['beta2'] ** state['step'])
                 else:
                     beta2_t = group['beta2']
 
                 if is_matrix and group['enable_factorization']:
                     exp_avg_sq_r.mul_(beta2_t). \
-                        add_(1 - beta2_t, torch.sum(torch.mul(grad, grad).
+                            add_(1 - beta2_t, torch.sum(torch.mul(grad, grad).
                                                     add_(group['eps1']),
                                                     dim=0, keepdim=True))
                     exp_avg_sq_c.mul_(beta2_t). \
-                        add_(1 - beta2_t, torch.sum(torch.mul(grad, grad).
+                            add_(1 - beta2_t, torch.sum(torch.mul(grad, grad).
                                                     add_(group['eps1']),
                                                     dim=1, keepdim=True))
                     v = torch.mul(exp_avg_sq_c,
                                   exp_avg_sq_r).div_(torch.sum(exp_avg_sq_r))
                 else:
                     exp_avg_sq.mul_(beta2_t). \
-                        addcmul_(1 - beta2_t, grad, grad). \
-                        add_((1 - beta2_t)*group['eps1'])
+                            addcmul_(1 - beta2_t, grad, grad). \
+                            add_((1 - beta2_t)*group['eps1'])
                     v = exp_avg_sq
 
                 g = grad
@@ -595,26 +588,20 @@ class FusedAdam(torch.optim.Optimizer):
             scale (float, optional): factor to divide gradient tensor values
                 by before applying to weights. (default: 1)
         """
-        loss = None
-        if closure is not None:
-            loss = closure()
-
+        loss = closure() if closure is not None else None
         if grads is None:
             grads_group = [None]*len(self.param_groups)
-        # backward compatibility
-        # assuming a list/generator of parameter means single group
-        elif isinstance(grads, types.GeneratorType):
-            grads_group = [grads]
-        elif type(grads[0]) != list:
+        elif isinstance(grads, types.GeneratorType) or type(grads[0]) != list:
             grads_group = [grads]
         else:
             grads_group = grads
 
         if output_params is None:
             output_params_group = [None]*len(self.param_groups)
-        elif isinstance(output_params, types.GeneratorType):
-            output_params_group = [output_params]
-        elif type(output_params[0]) != list:
+        elif (
+            isinstance(output_params, types.GeneratorType)
+            or type(output_params[0]) != list
+        ):
             output_params_group = [output_params]
         else:
             output_params_group = output_params
@@ -623,7 +610,7 @@ class FusedAdam(torch.optim.Optimizer):
             grad_norms = [None]*len(self.param_groups)
 
         for group, grads_this_group, output_params_this_group, \
-            grad_norm in zip(self.param_groups, grads_group,
+                grad_norm in zip(self.param_groups, grads_group,
                              output_params_group, grad_norms):
             if grads_this_group is None:
                 grads_this_group = [None]*len(group['params'])
@@ -670,7 +657,7 @@ class FusedAdam(torch.optim.Optimizer):
                 state['step'] += 1
 
                 out_p = torch.tensor([], dtype=torch.float) if output_param \
-                    is None else output_param
+                        is None else output_param
                 fused_adam_cuda.adam(p.data,
                                      out_p,
                                      exp_avg,

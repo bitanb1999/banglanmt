@@ -29,7 +29,7 @@ def build_translator(opt, report_score=True, logger=None, out_file=None):
 
     scorer = onmt.translate.GNMTGlobalScorer.from_opt(opt)
 
-    translator = Translator.from_opt(
+    return Translator.from_opt(
         model,
         fields,
         opt,
@@ -37,9 +37,8 @@ def build_translator(opt, report_score=True, logger=None, out_file=None):
         global_scorer=scorer,
         out_file=out_file,
         report_score=report_score,
-        logger=logger
+        logger=logger,
     )
-    return translator
 
 
 def max_tok_len(new, count, sofar):
@@ -56,9 +55,7 @@ def max_tok_len(new, count, sofar):
         # max_tgt_in_batch = 0
     # Src: [<bos> w1 ... wN <eos>]
     max_src_in_batch = max(max_src_in_batch, len(new.src[0]) + 2)
-    # Tgt: [w1 ... wM <eos>]
-    src_elements = count * max_src_in_batch
-    return src_elements
+    return count * max_src_in_batch
 
 
 class Translator(object):
@@ -584,13 +581,10 @@ class Translator(object):
 
         # Generator forward.
         if not self.copy_attn:
-            if "std" in dec_attn:
-                attn = dec_attn["std"]
-            else:
-                attn = None
+            attn = dec_attn["std"] if "std" in dec_attn else None
             log_probs = self.model.generator(dec_out.squeeze(0))
-            # returns [(batch_size x beam_size) , vocab ] when 1 step
-            # or [ tgt_len, batch_size, vocab ] when full sentence
+                # returns [(batch_size x beam_size) , vocab ] when 1 step
+                # or [ tgt_len, batch_size, vocab ] when full sentence
         else:
             attn = dec_attn["copy"]
             scores = self.model.generator(dec_out.view(-1, dec_out.size(2)),
@@ -834,34 +828,44 @@ class Translator(object):
         return gold_scores
 
     def _report_score(self, name, score_total, words_total):
-        if words_total == 0:
-            msg = "%s No words predicted" % (name,)
-        else:
-            msg = ("%s AVG SCORE: %.4f, %s PPL: %.4f" % (
-                name, score_total / words_total,
-                name, math.exp(-score_total / words_total)))
-        return msg
+        return (
+            f"{name} No words predicted"
+            if words_total == 0
+            else (
+                "%s AVG SCORE: %.4f, %s PPL: %.4f"
+                % (
+                    name,
+                    score_total / words_total,
+                    name,
+                    math.exp(-score_total / words_total),
+                )
+            )
+        )
 
     def _report_bleu(self, tgt_path):
         import subprocess
-        base_dir = os.path.abspath(__file__ + "/../../..")
+        base_dir = os.path.abspath(f"{__file__}/../../..")
         # Rollback pointer to the beginning.
         self.out_file.seek(0)
         print()
 
         res = subprocess.check_output(
-            "perl %s/tools/multi-bleu.perl %s" % (base_dir, tgt_path),
-            stdin=self.out_file, shell=True
+            f"perl {base_dir}/tools/multi-bleu.perl {tgt_path}",
+            stdin=self.out_file,
+            shell=True,
         ).decode("utf-8")
 
-        msg = ">> " + res.strip()
-        return msg
+        return f">> {res.strip()}"
 
     def _report_rouge(self, tgt_path):
         import subprocess
         path = os.path.split(os.path.realpath(__file__))[0]
-        msg = subprocess.check_output(
-            "python %s/tools/test_rouge.py -r %s -c STDIN" % (path, tgt_path),
-            shell=True, stdin=self.out_file
-        ).decode("utf-8").strip()
-        return msg
+        return (
+            subprocess.check_output(
+                f"python {path}/tools/test_rouge.py -r {tgt_path} -c STDIN",
+                shell=True,
+                stdin=self.out_file,
+            )
+            .decode("utf-8")
+            .strip()
+        )

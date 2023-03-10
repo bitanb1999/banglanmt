@@ -72,13 +72,11 @@ SCORER_BUILDER = {
 def scorers_from_opts(opt):
     if opt.early_stopping_criteria is None:
         return DEFAULT_SCORERS
-    else:
-        scorers = []
-        for criterion in set(opt.early_stopping_criteria):
-            assert criterion in SCORER_BUILDER.keys(), \
-                "Criterion {} not found".format(criterion)
-            scorers.append(SCORER_BUILDER[criterion]())
-        return scorers
+    scorers = []
+    for criterion in set(opt.early_stopping_criteria):
+        assert criterion in SCORER_BUILDER.keys(), f"Criterion {criterion} not found"
+        scorers.append(SCORER_BUILDER[criterion]())
+    return scorers
 
 
 class EarlyStopping(object):
@@ -119,12 +117,16 @@ class EarlyStopping(object):
             # Don't do anything
             return
 
-        if all([scorer.is_improving(valid_stats) for scorer
-                in self.early_stopping_scorers]):
+        if all(
+            scorer.is_improving(valid_stats)
+            for scorer in self.early_stopping_scorers
+        ):
             self._update_increasing(valid_stats, step)
 
-        elif all([scorer.is_decreasing(valid_stats) for scorer
-                  in self.early_stopping_scorers]):
+        elif all(
+            scorer.is_decreasing(valid_stats)
+            for scorer in self.early_stopping_scorers
+        ):
             self._update_decreasing()
 
         else:
@@ -133,9 +135,7 @@ class EarlyStopping(object):
     def _update_stalled(self):
         self.stalled_tolerance -= 1
 
-        logger.info(
-            "Stalled patience: {}/{}".format(self.stalled_tolerance,
-                                             self.tolerance))
+        logger.info(f"Stalled patience: {self.stalled_tolerance}/{self.tolerance}")
 
         if self.stalled_tolerance == 0:
             logger.info(
@@ -167,10 +167,7 @@ class EarlyStopping(object):
         self.current_tolerance -= 1
 
         # Log
-        logger.info(
-            "Decreasing patience: {}/{}".format(self.current_tolerance,
-                                                self.tolerance)
-        )
+        logger.info(f"Decreasing patience: {self.current_tolerance}/{self.tolerance}")
         # Log
         if self.current_tolerance == 0:
             logger.info("Training finished after not improving. Early Stop!")
@@ -179,8 +176,7 @@ class EarlyStopping(object):
         self._decreasing_or_stopped_status_update(self.current_tolerance)
 
     def _log_best_step(self):
-        logger.info("Best model found at step {}".format(
-            self.current_step_best))
+        logger.info(f"Best model found at step {self.current_step_best}")
 
     def _decreasing_or_stopped_status_update(self, tolerance):
         self.status = PatienceEnum.DECREASING \

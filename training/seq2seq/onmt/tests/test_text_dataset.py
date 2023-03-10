@@ -75,11 +75,11 @@ class TestTextMultiField(unittest.TestCase):
                 self.assertEqual(data.shape, expected_shape)
 
     def test_preprocess_shape(self):
+        sample_str = "dummy input here ."
         for init_case, params in itertools.product(
                 self.INIT_CASES, self.PARAMS):
             init_case = self.initialize_case(init_case, params)
             mf = TextMultiField(**init_case)
-            sample_str = "dummy input here ."
             proc = mf.preprocess(sample_str)
             self.assertEqual(len(proc), len(init_case["feats_fields"]) + 1)
 
@@ -120,8 +120,7 @@ class TestTextMultiField(unittest.TestCase):
                 self.INIT_CASES, self.PARAMS):
             init_case = self.initialize_case(init_case, params)
             mf = TextMultiField(**init_case)
-            fnames = [name for name, _ in init_case["feats_fields"]]
-            if len(fnames) > 0:
+            if fnames := [name for name, _ in init_case["feats_fields"]]:
                 ordered_names = list(sorted(fnames))
                 name2field = dict(init_case["feats_fields"])
                 for i, name in enumerate(ordered_names, 1):

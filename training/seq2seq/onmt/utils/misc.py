@@ -12,20 +12,21 @@ def split_corpus(path, shard_size):
             yield f.readlines()
         else:
             while True:
-                shard = list(islice(f, shard_size))
-                if not shard:
+                if shard := list(islice(f, shard_size)):
+                    yield shard
+                else:
                     break
-                yield shard
 
 
 def aeq(*args):
     """
     Assert all arguments have the same value
     """
-    arguments = (arg for arg in args)
+    arguments = iter(args)
     first = next(arguments)
-    assert all(arg == first for arg in arguments), \
-        "Not all arguments have the same value: " + str(args)
+    assert all(
+        arg == first for arg in arguments
+    ), f"Not all arguments have the same value: {args}"
 
 
 def sequence_mask(lengths, max_len=None):
@@ -99,9 +100,7 @@ def generate_relative_positions_matrix(length, max_relative_positions,
     distance_mat_clipped = torch.clamp(distance_mat,
                                        min=-max_relative_positions,
                                        max=max_relative_positions)
-    # Shift values to be >= 0
-    final_mat = distance_mat_clipped + max_relative_positions
-    return final_mat
+    return distance_mat_clipped + max_relative_positions
 
 
 def relative_matmul(x, z, transpose):
@@ -117,8 +116,7 @@ def relative_matmul(x, z, transpose):
     else:
         x_tz_matmul = torch.matmul(x_t_r, z)
     x_tz_matmul_r = x_tz_matmul.reshape(length, batch_size, heads, -1)
-    x_tz_matmul_r_t = x_tz_matmul_r.permute(1, 2, 0, 3)
-    return x_tz_matmul_r_t
+    return x_tz_matmul_r.permute(1, 2, 0, 3)
 
 
 def fn_args(fun):

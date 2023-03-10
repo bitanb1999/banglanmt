@@ -48,18 +48,18 @@ def main(opt, device_id, batch_queue=None, semaphore=None):
         'Number of accum_count values must match number of accum_steps'
     # Load checkpoint if we resume from a previous training.
     if opt.train_from:
-        logger.info('Loading checkpoint from %s' % opt.train_from)
+        logger.info(f'Loading checkpoint from {opt.train_from}')
         checkpoint = torch.load(opt.train_from,
                                 map_location=lambda storage, loc: storage)
         model_opt = ArgumentParser.ckpt_model_opts(checkpoint["opt"])
         ArgumentParser.update_model_opts(model_opt)
         ArgumentParser.validate_model_opts(model_opt)
-        logger.info('Loading vocab from checkpoint at %s.' % opt.train_from)
+        logger.info(f'Loading vocab from checkpoint at {opt.train_from}.')
         vocab = checkpoint['vocab']
     else:
         checkpoint = None
         model_opt = opt
-        vocab = torch.load(opt.data + '.vocab.pt')
+        vocab = torch.load(f'{opt.data}.vocab.pt')
 
     # check for code where vocab is saved instead of fields
     # (in the future this will be done in a smarter way)
@@ -101,12 +101,12 @@ def main(opt, device_id, batch_queue=None, semaphore=None):
         if len(opt.data_ids) > 1:
             train_shards = []
             for train_id in opt.data_ids:
-                shard_base = "train_" + train_id
+                shard_base = f"train_{train_id}"
                 train_shards.append(shard_base)
             train_iter = build_dataset_iter_multiple(train_shards, fields, opt)
         else:
             if opt.data_ids[0] is not None:
-                shard_base = "train_" + opt.data_ids[0]
+                shard_base = f"train_{opt.data_ids[0]}"
             else:
                 shard_base = "train"
             train_iter = build_dataset_iter(shard_base, fields, opt)
@@ -127,7 +127,7 @@ def main(opt, device_id, batch_queue=None, semaphore=None):
         "valid", fields, opt, is_train=False)
 
     if len(opt.gpu_ranks):
-        logger.info('Starting training on GPU: %s' % opt.gpu_ranks)
+        logger.info(f'Starting training on GPU: {opt.gpu_ranks}')
     else:
         logger.info('Starting training on CPU, could be very slow')
     train_steps = opt.train_steps

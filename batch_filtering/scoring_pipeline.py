@@ -13,7 +13,7 @@ random.seed(3435)
 
 def loadEncoder(cpu=False):
     model_loc = os.path.join(os.environ["LASER"], "models", "bilstm.93langs.2018-12-26.pt")
-    print(' - Encoder: loading {}'.format(model_loc))
+    print(f' - Encoder: loading {model_loc}')
     global ENCODER
 
     ENCODER = SentenceEncoder(model_loc,
@@ -26,12 +26,16 @@ def encode(ifname, ofname, language):
     with tempfile.TemporaryDirectory() as tmpdir:
         
         tok_fname = os.path.join(tmpdir, 'tok')
-        Token(ifname,
-                tok_fname,
-                lang=language,
-                romanize=True if language == 'el' else False,
-                lower_case=True, gzip=False,
-                verbose=True, over_write=False)
+        Token(
+            ifname,
+            tok_fname,
+            lang=language,
+            romanize=language == 'el',
+            lower_case=True,
+            gzip=False,
+            verbose=True,
+            over_write=False,
+        )
         ifname = tok_fname
 
         bpe_fname = os.path.join(tmpdir, 'bpe')
@@ -78,13 +82,7 @@ def score(prefix, args):
     writeValidLinePairs(f'{prefix}.{args.src_lang}', f'{prefix}.{args.tgt_lang}')
 
     s = f'''
-    python3 \"{os.path.join(os.environ["LASER"], "source", "mine_bitexts.py")}\" \
-        \"{prefix}.{args.src_lang}\" \"{prefix}.{args.tgt_lang}\" \
-        --src-lang {args.src_lang} --trg-lang {args.tgt_lang} \
-        --src-embeddings \"{prefix}.enc.{args.src_lang}\" --trg-embeddings \"{prefix}.enc.{args.tgt_lang}\" \
-        --mode score --retrieval max -k 4  \
-        --output \"{prefix}.tsv\" \
-        --verbose {'--gpu' if not args.cpu else ''}
+    python3 \"{os.path.join(os.environ["LASER"], "source", "mine_bitexts.py")}\" \\n    #        \"{prefix}.{args.src_lang}\" \"{prefix}.{args.tgt_lang}\" \\n    #        --src-lang {args.src_lang} --trg-lang {args.tgt_lang} \\n    #        --src-embeddings \"{prefix}.enc.{args.src_lang}\" --trg-embeddings \"{prefix}.enc.{args.tgt_lang}\" \\n    #        --mode score --retrieval max -k 4  \\n    #        --output \"{prefix}.tsv\" \\n    #        --verbose {'' if args.cpu else '--gpu'}
     '''
     os.system(s)
 
@@ -179,13 +177,13 @@ def batchFilterDir(args):
 
         chunkFiles(prefix, dirname, args)
         out_prefix = os.path.basename(prefix)
-        tsv_name = out_prefix + ".merged.tsv"
+        tsv_name = f"{out_prefix}.merged.tsv"
         scoreDir(os.path.join(dirname, "original"), tsv_name, args)
 
         outDir = dirname.replace(os.path.normpath(args.input_dir), os.path.normpath(args.output_dir), 1)
         os.makedirs(outDir, exist_ok=True)
         passed = failed = 0
-        
+
         shutil.move(os.path.join(dirname, tsv_name), os.path.join(outDir, tsv_name))
 
         with open(os.path.join(outDir, f'{out_prefix}.passed.{args.src_lang}'), 'w') as psrc, \
@@ -196,7 +194,7 @@ def batchFilterDir(args):
             with open(os.path.join(outDir, tsv_name)) as f:
                 for line in f:
                     score, srcLine, tgtLine = line.split('\t')
-                    
+
                     if float(score) > args.thresh:
                         print(srcLine.strip(), file=psrc)
                         print(tgtLine.strip(), file=ptgt)
@@ -205,7 +203,7 @@ def batchFilterDir(args):
                         print(srcLine.strip(), file=fsrc)
                         print(tgtLine.strip(), file=ftgt)
                         failed += 1
-        
+
         print(f'Passed Sentences: {passed}')
         print(f'Failed Sentences: {failed}')
 

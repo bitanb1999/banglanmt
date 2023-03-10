@@ -26,8 +26,8 @@ import numpy as np
 assert os.environ.get('LASER'), 'Please set the enviornment variable LASER'
 LASER = os.environ['LASER']
 
-sys.path.append(LASER + '/source')
-sys.path.append(LASER + '/source/tools')
+sys.path.append(f'{LASER}/source')
+sys.path.append(f'{LASER}/source/tools')
 from embed import SentenceEncoder, EncodeLoad, EncodeFile, EmbedLoad
 from text_processing import Token, BPEfastApply
 
@@ -41,7 +41,7 @@ from text_processing import Token, BPEfastApply
 def TextLoadUnify(fname, args):
     if args.verbose:
         print(' - loading texts {:s}: '.format(fname), end='')
-        
+
     fin = open(fname, encoding=args.encoding, errors='surrogateescape')
     inds = []
     sents = []
@@ -50,20 +50,16 @@ def TextLoadUnify(fname, args):
         for i, line in enumerate(fin):
             inds.append(i)
             sents.append(line[:-1])
-        
+
         return inds, sents
-    
+
     sent2ind = {}
     n = 0
     nu = 0
     for line in fin:
         new_ind = len(sent2ind)
         inds.append(sent2ind.setdefault(line, new_ind))
-        if args.unify:
-            if inds[-1] == new_ind:
-                sents.append(line[:-1])
-                nu += 1
-        else:
+        if args.unify and inds[-1] == new_ind or not args.unify:
             sents.append(line[:-1])
             nu += 1
         n += 1

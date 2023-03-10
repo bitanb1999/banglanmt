@@ -108,8 +108,10 @@ class RNNEncoder(EncoderBase):
             return F.relu(result).view(size)
 
         if isinstance(hidden, tuple):  # LSTM
-            outs = tuple([bottle_hidden(layer, hidden[ix])
-                          for ix, layer in enumerate(self.bridge)])
+            outs = tuple(
+                bottle_hidden(layer, hidden[ix])
+                for ix, layer in enumerate(self.bridge)
+            )
         else:
             outs = bottle_hidden(self.bridge[0], hidden)
         return outs

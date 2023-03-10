@@ -62,7 +62,7 @@ class TestCopyGenerator(unittest.TestCase):
             cgen = CopyGenerator(**init_case)
             trainable_params = {n: p for n, p in cgen.named_parameters()
                                 if p.requires_grad}
-            assert len(trainable_params) > 0  # sanity check
+            assert trainable_params
             old_weights = deepcopy(trainable_params)
             dummy_in = self.dummy_inputs(params, init_case)
             res = cgen(*dummy_in)
@@ -70,11 +70,11 @@ class TestCopyGenerator(unittest.TestCase):
             pretend_loss.backward()
             dummy_optim = torch.optim.SGD(trainable_params.values(), 1)
             dummy_optim.step()
-            for param_name in old_weights.keys():
+            for param_name, value in old_weights.items():
                 self.assertTrue(
-                    trainable_params[param_name]
-                    .ne(old_weights[param_name]).any(),
-                    param_name + " " + init_case.__str__())
+                    trainable_params[param_name].ne(value).any(),
+                    f"{param_name} {init_case.__str__()}",
+                )
 
 
 class TestCopyGeneratorLoss(unittest.TestCase):

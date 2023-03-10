@@ -31,11 +31,12 @@ def critical(func):
             server_model.running_lock.acquire(True)
         try:
             o = func(server_model, *args, **kwargs)
-        except (Exception, RuntimeError):
+        except Exception:
             server_model.running_lock.release()
             raise
         server_model.running_lock.release()
         return o
+
     return wrapper
 
 
@@ -54,10 +55,7 @@ class Timer:
 
     def tick(self, name=None, tot=False):
         t = time.time()
-        if not tot:
-            elapsed = t - self.prev
-        else:
-            elapsed = t - self.stime
+        elapsed = t - self.stime if tot else t - self.prev
         self.prev = t
 
         if name is not None:
@@ -109,13 +107,12 @@ class TranslationServer(object):
         Different options may be passed. If `opt` is None, it will use the
         same set of options
         """
-        if model_id in self.models:
-            if opt is None:
-                opt = self.models[model_id].user_opt
-            opt["models"] = self.models[model_id].opt.models
-            return self.load_model(opt, timeout)
-        else:
-            raise ServerModelError("No such model '%s'" % str(model_id))
+        if model_id not in self.models:
+            raise ServerModelError(f"No such model '{str(model_id)}'")
+        if opt is None:
+            opt = self.models[model_id].user_opt
+        opt["models"] = self.models[model_id].opt.models
+        return self.load_model(opt, timeout)
 
     def load_model(self, opt, model_id=None, **model_kwargs):
         """Load a model given a set of options
@@ -130,14 +127,13 @@ class TranslationServer(object):
 
         It will effectively load the model if `load` is set
         """
-        if model_id is not None:
-            if model_id in self.models.keys():
-                raise ValueError("Model ID %d already exists" % model_id)
-        else:
+        if model_id is None:
             model_id = self.next_id
             while model_id in self.models.keys():
                 model_id += 1
             self.next_id = model_id + 1
+        elif model_id in self.models.keys():
+            raise ValueError("Model ID %d already exists" % model_id)
         print("Pre-loading model %d" % model_id)
         model = ServerModel(opt, model_id, **model_kwargs)
         self.models[model_id] = model
@@ -156,9 +152,8 @@ class TranslationServer(object):
         model_id = inputs[0].get("id", 0)
         if model_id in self.models and self.models[model_id] is not None:
             return self.models[model_id].run(inputs)
-        else:
-            print("Error No such model '%s'" % str(model_id))
-            raise ServerModelError("No such model '%s'" % str(model_id))
+        print(f"Error No such model '{str(model_id)}'")
+        raise ServerModelError(f"No such model '{str(model_id)}'")
 
     def unload_model(self, model_id):
         """Manually unload a model.
@@ -169,15 +164,12 @@ class TranslationServer(object):
         if model_id in self.models and self.models[model_id] is not None:
             self.models[model_id].unload()
         else:
-            raise ServerModelError("No such model '%s'" % str(model_id))
+            raise ServerModelError(f"No such model '{str(model_id)}'")
 
     def list_models(self):
         """Return the list of available models
         """
-        models = []
-        for _, model in self.models.items():
-            models += [model.to_dict()]
-        return models
+        return [model.to_dict() for _, model in self.models.items()]
 
 
 class ServerModel(object):
@@ -262,9 +254,9 @@ class ServerModel(object):
                 sys.argv += ['-model']
                 sys.argv += [str(model) for model in v]
             elif type(v) == bool:
-                sys.argv += ['-%s' % k]
+                sys.argv += [f'-{k}']
             else:
-                sys.argv += ['-%s' % k, str(v)]
+                sys.argv += [f'-{k}', str(v)]
 
         opt = parser.parse_args()
         ArgumentParser.validate_translate_opts(opt)
@@ -290,7 +282,7 @@ class ServerModel(object):
                                                out_file=codecs.open(
                                                    os.devnull, "w", "utf-8"))
         except RuntimeError as e:
-            raise ServerModelError("Runtime Error: %s" % str(e))
+            raise ServerModelError(f"Runtime Error: {str(e)}")
 
         timer.tick("model_loading")
         if self.preprocess_opt is not None:
@@ -401,9 +393,9 @@ class ServerModel(object):
                 match_before = re.search(r'^\s+', src)
                 match_after = re.search(r'\s+$', src)
                 if match_before is not None:
-                    whitespaces_before = match_before.group(0)
+                    whitespaces_before = match_before[0]
                 if match_after is not None:
-                    whitespaces_after = match_after.group(0)
+                    whitespaces_after = match_after[0]
                 head_spaces.append(whitespaces_before)
                 preprocessed_src = self.maybe_preprocess(src.strip())
                 tok = self.maybe_tokenize(preprocessed_src)
@@ -416,20 +408,19 @@ class ServerModel(object):
 
         scores = []
         predictions = []
-        if len(texts_to_translate) > 0:
+        if texts_to_translate:
             try:
                 scores, predictions = self.translator.translate(
                     texts_to_translate,
                     batch_size=len(texts_to_translate)
                     if self.opt.batch_size == 0
                     else self.opt.batch_size)
-            except (RuntimeError, Exception) as e:
-                err = "Error: %s" % str(e)
+            except Exception as e:
+                err = f"Error: {str(e)}"
                 self.logger.error(err)
-                self.logger.error("repr(text_to_translate): "
-                                  + repr(texts_to_translate))
-                self.logger.error("model: #%s" % self.model_id)
-                self.logger.error("model opt: " + str(self.opt.__dict__))
+                self.logger.error(f"repr(text_to_translate): {repr(texts_to_translate)}")
+                self.logger.error(f"model: #{self.model_id}")
+                self.logger.error(f"model opt: {str(self.opt.__dict__)}")
                 self.logger.error(traceback.format_exc())
 
                 raise ServerModelError(err)
@@ -444,6 +435,7 @@ class ServerModel(object):
         #       we can ignore that (i.e. flatten lists) only because
         #       we restrict `n_best=1`
         def flatten_list(_list): return sum(_list, [])
+
         results = flatten_list(predictions)
         scores = [score_tensor.item()
                   for score_tensor in flatten_list(scores)]
@@ -529,9 +521,7 @@ class ServerModel(object):
 
         """
 
-        if self.preprocess_opt is not None:
-            return self.preprocess(sequence)
-        return sequence
+        return sequence if self.preprocess_opt is None else self.preprocess(sequence)
 
     def preprocess(self, sequence):
         """Preprocess a single sequence.
@@ -554,9 +544,7 @@ class ServerModel(object):
         Same args/returns as `tokenize`
         """
 
-        if self.tokenizer_opt is not None:
-            return self.tokenize(sequence)
-        return sequence
+        return self.tokenize(sequence) if self.tokenizer_opt is not None else sequence
 
     def tokenize(self, sequence):
         """Tokenize a single sequence.
@@ -610,9 +598,7 @@ class ServerModel(object):
 
         """
 
-        if self.postprocess_opt is not None:
-            return self.postprocess(sequence)
-        return sequence
+        return sequence if self.postprocess_opt is None else self.postprocess(sequence)
 
     def postprocess(self, sequence):
         """Preprocess a single sequence.
@@ -636,7 +622,6 @@ def get_function_by_path(path, args=[], kwargs={}):
     try:
         module = importlib.import_module(module_name)
     except ValueError as e:
-        print("Cannot import module '%s'" % module_name)
+        print(f"Cannot import module '{module_name}'")
         raise e
-    function = getattr(module, function_name)
-    return function
+    return getattr(module, function_name)

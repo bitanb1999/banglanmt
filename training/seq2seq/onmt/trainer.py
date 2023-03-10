@@ -59,19 +59,28 @@ def build_trainer(opt, device_id, model, fields, optim, model_saver=None):
         if opt.early_stopping > 0 else None
 
     report_manager = onmt.utils.build_report_manager(opt, gpu_rank)
-    trainer = onmt.Trainer(model, train_loss, valid_loss, optim, trunc_size,
-                           shard_size, norm_method,
-                           accum_count, accum_steps,
-                           n_gpu, gpu_rank,
-                           gpu_verbose_level, report_manager,
-                           model_saver=model_saver if gpu_rank == 0 else None,
-                           average_decay=average_decay,
-                           average_every=average_every,
-                           model_dtype=opt.model_dtype,
-                           earlystopper=earlystopper,
-                           dropout=dropout,
-                           dropout_steps=dropout_steps)
-    return trainer
+    return onmt.Trainer(
+        model,
+        train_loss,
+        valid_loss,
+        optim,
+        trunc_size,
+        shard_size,
+        norm_method,
+        accum_count,
+        accum_steps,
+        n_gpu,
+        gpu_rank,
+        gpu_verbose_level,
+        report_manager,
+        model_saver=model_saver if gpu_rank == 0 else None,
+        average_decay=average_decay,
+        average_every=average_every,
+        model_dtype=opt.model_dtype,
+        earlystopper=earlystopper,
+        dropout=dropout,
+        dropout_steps=dropout_steps,
+    )
 
 
 class Trainer(object):
@@ -335,13 +344,9 @@ class Trainer(object):
         for k, batch in enumerate(true_batches):
             target_size = batch.tgt.size(0)
             # Truncated BPTT: reminder not compatible with accum > 1
-            if self.trunc_size:
-                trunc_size = self.trunc_size
-            else:
-                trunc_size = target_size
-
+            trunc_size = self.trunc_size or target_size
             src, src_lengths = batch.src if isinstance(batch.src, tuple) \
-                else (batch.src, None)
+                    else (batch.src, None)
             if src_lengths is not None:
                 report_stats.n_src_words += src_lengths.sum().item()
 

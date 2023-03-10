@@ -48,9 +48,7 @@ class TestEmbeddings(unittest.TestCase):
                 return True
             if case["feat_vec_size"] != 0:
                 return True
-        if case["feat_vec_size"] != 0 and case["feat_vec_exponent"] != -1:
-            return True
-        return False
+        return case["feat_vec_size"] != 0 and case["feat_vec_exponent"] != -1
 
     @classmethod
     def cases(cls):
@@ -81,9 +79,9 @@ class TestEmbeddings(unittest.TestCase):
     def expected_shape(cls, params, init_case):
         wvs = init_case["word_vec_size"]
         fvs = init_case["feat_vec_size"]
-        nf = len(init_case["feat_vocab_sizes"])
         size = wvs
         if init_case["feat_merge"] not in {"sum", "mlp"}:
+            nf = len(init_case["feat_vocab_sizes"])
             size += nf * fvs
         return params["max_seq_len"], params["batch_size"], size
 
@@ -131,9 +129,9 @@ class TestEmbeddings(unittest.TestCase):
     def test_embeddings_trainable_params_update(self):
         for params, init_case in itertools.product(self.PARAMS, self.cases()):
             emb = Embeddings(**init_case)
-            trainable_params = {n: p for n, p in emb.named_parameters()
-                                if p.requires_grad}
-            if len(trainable_params) > 0:
+            if trainable_params := {
+                n: p for n, p in emb.named_parameters() if p.requires_grad
+            }:
                 old_weights = deepcopy(trainable_params)
                 dummy_in = self.dummy_inputs(params, init_case)
                 res = emb(dummy_in)
@@ -141,8 +139,8 @@ class TestEmbeddings(unittest.TestCase):
                 pretend_loss.backward()
                 dummy_optim = torch.optim.SGD(trainable_params.values(), 1)
                 dummy_optim.step()
-                for param_name in old_weights.keys():
+                for param_name, value in old_weights.items():
                     self.assertTrue(
-                        trainable_params[param_name]
-                        .ne(old_weights[param_name]).any(),
-                        param_name + " " + init_case.__str__())
+                        trainable_params[param_name].ne(value).any(),
+                        f"{param_name} {init_case.__str__()}",
+                    )

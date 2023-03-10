@@ -35,8 +35,8 @@ class TranslationBuilder(object):
     def _build_target_tokens(self, src, src_vocab, src_raw, pred, attn):
         tgt_field = dict(self.fields)["tgt"].base_field
         src_field = dict(self.fields)["src"].base_field
-        
-        
+
+
         vocab = tgt_field.vocab
         tokens = []
 
@@ -44,7 +44,7 @@ class TranslationBuilder(object):
         # print(src_raw)
         # print('***************')
         # print(pred)
-        
+
         for tok in pred:
             if tok < len(vocab):
                 tokens.append(vocab.itos[tok])
@@ -54,13 +54,13 @@ class TranslationBuilder(object):
                 tokens = tokens[:-1]
                 break
         if self.replace_unk and attn is not None and src is not None:
-            src_unks = []
             src_vocab = src_field.vocab
 
-            for i, (src_token, src_id) in enumerate(zip(src_raw, src)):
-                if src_vocab.itos[src_id] == src_field.unk_token:
-                    src_unks.append((i, src_token))
-                    
+            src_unks = [
+                (i, src_token)
+                for i, (src_token, src_id) in enumerate(zip(src_raw, src))
+                if src_vocab.itos[src_id] == src_field.unk_token
+            ]
             seen_tgt_unks = 0
             total_src_unks = len(src_unks)
 
@@ -86,7 +86,7 @@ class TranslationBuilder(object):
                     # else:
                     #     pred_mask[i] = False
                     # seen_tgt_unks += 1
-                    
+
                     # _, max_index = attn[i][:len(src_raw)].max(0)
                     # tokens[i] = src_raw[max_index.item()]
                     # if self.phrase_table != "":
@@ -95,9 +95,9 @@ class TranslationBuilder(object):
                     #             if line.startswith(src_raw[max_index.item()]):
                     #                 tokens[i] = line.split('|||')[1].strip()
 
-            # print(tokens)
-            # print(seen_tgt_unks)
-            # print('--------End----------')
+                # print(tokens)
+                # print(seen_tgt_unks)
+                # print('--------End----------')
 
         return [token for token, mask in zip(tokens, pred_mask) if mask]
 
@@ -187,21 +187,28 @@ class Translation(object):
         Log translation.
         """
 
-        msg = ['\nSENT {}: {}\n'.format(sent_number, self.src_raw)]
-
         best_pred = self.pred_sents[0]
         best_score = self.pred_scores[0]
         pred_sent = ' '.join(best_pred)
-        msg.append('PRED {}: {}\n'.format(sent_number, pred_sent))
-        msg.append("PRED SCORE: {:.4f}\n".format(best_score))
-
+        msg = [
+            f'\nSENT {sent_number}: {self.src_raw}\n',
+            *(
+                f'PRED {sent_number}: {pred_sent}\n',
+                "PRED SCORE: {:.4f}\n".format(best_score),
+            ),
+        ]
         if self.gold_sent is not None:
             tgt_sent = ' '.join(self.gold_sent)
-            msg.append('GOLD {}: {}\n'.format(sent_number, tgt_sent))
-            msg.append(("GOLD SCORE: {:.4f}\n".format(self.gold_score)))
+            msg.extend(
+                (
+                    f'GOLD {sent_number}: {tgt_sent}\n',
+                    "GOLD SCORE: {:.4f}\n".format(self.gold_score),
+                )
+            )
         if len(self.pred_sents) > 1:
             msg.append('\nBEST HYP:\n')
-            for score, sent in zip(self.pred_scores, self.pred_sents):
-                msg.append("[{:.4f}] {}\n".format(score, sent))
-
+            msg.extend(
+                "[{:.4f}] {}\n".format(score, sent)
+                for score, sent in zip(self.pred_scores, self.pred_sents)
+            )
         return "".join(msg)

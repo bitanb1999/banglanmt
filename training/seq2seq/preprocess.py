@@ -25,11 +25,8 @@ def check_existing_pt_files(opt, corpus_type, ids, existing_fields):
     """ Check if there are existing .pt files to avoid overwriting them """
     existing_shards = []
     for maybe_id in ids:
-        if maybe_id:
-            shard_base = corpus_type + "_" + maybe_id
-        else:
-            shard_base = corpus_type
-        pattern = opt.save_data + '.{}.*.pt'.format(shard_base)
+        shard_base = f"{corpus_type}_{maybe_id}" if maybe_id else corpus_type
+        pattern = f'{opt.save_data}.{shard_base}.*.pt'
         if glob.glob(pattern):
             if opt.overwrite:
                 maybe_overwrite = ("will be overwritten because "
@@ -37,8 +34,9 @@ def check_existing_pt_files(opt, corpus_type, ids, existing_fields):
             else:
                 maybe_overwrite = ("won't be overwritten, pass the "
                                    "`-overwrite` option if you want to.")
-            logger.warning("Shards for corpus {} already exist, {}"
-                           .format(shard_base, maybe_overwrite))
+            logger.warning(
+                f"Shards for corpus {shard_base} already exist, {maybe_overwrite}"
+            )
             existing_shards += [maybe_id]
     return existing_shards
 
@@ -84,15 +82,11 @@ def process_one_shard(corpus_params, params):
                             and sub_f.sequential and not has_vocab):
                         val = fd
                         sub_sub_counter[sub_n].update(val)
-    if maybe_id:
-        shard_base = corpus_type + "_" + maybe_id
-    else:
-        shard_base = corpus_type
+    shard_base = f"{corpus_type}_{maybe_id}" if maybe_id else corpus_type
     data_path = "{:s}.{:s}.{:d}.pt".\
         format(opt.save_data, shard_base, i)
 
-    logger.info(" * saving %sth %s data shard to %s."
-                % (i, shard_base, data_path))
+    logger.info(f" * saving {i}th {shard_base} data shard to {data_path}.")
 
     dataset.save(data_path)
 
@@ -181,7 +175,7 @@ def build_save_dataset(corpus_type, fields, src_reader, tgt_reader, opt):
             src_shards = split_corpus(src, opt.shard_size)
             tgt_shards = split_corpus(tgt, opt.shard_size)
 
-            
+
             for i, (ss, ts) in enumerate(zip(src_shards, tgt_shards)):
                 yield (i, (ss, ts, maybe_id, filter_pred))
 
@@ -198,7 +192,7 @@ def build_save_dataset(corpus_type, fields, src_reader, tgt_reader, opt):
                     counters[key].update(value)
 
     if corpus_type == "train":
-        vocab_path = opt.save_data + '.vocab.pt'
+        vocab_path = f'{opt.save_data}.vocab.pt'
         if existing_fields is None:
             fields = _build_fields_vocab(
                 fields, counters, opt.data_type,
@@ -217,7 +211,7 @@ def build_save_vocab(train_dataset, fields, opt):
         opt.tgt_vocab, opt.tgt_vocab_size, opt.tgt_words_min_frequency,
         vocab_size_multiple=opt.vocab_size_multiple
     )
-    vocab_path = opt.save_data + '.vocab.pt'
+    vocab_path = f'{opt.save_data}.vocab.pt'
     torch.save(fields, vocab_path)
 
 

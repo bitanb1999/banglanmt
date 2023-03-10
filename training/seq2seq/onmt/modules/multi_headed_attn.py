@@ -121,19 +121,19 @@ class MultiHeadedAttention(nn.Module):
         def shape(x):
             """Projection."""
             return x.view(batch_size, -1, head_count, dim_per_head) \
-                .transpose(1, 2)
+                    .transpose(1, 2)
 
         def unshape(x):
             """Compute context."""
             return x.transpose(1, 2).contiguous() \
-                    .view(batch_size, -1, head_count * dim_per_head)
+                        .view(batch_size, -1, head_count * dim_per_head)
 
         # 1) Project key, value, and query.
         if layer_cache is not None:
             if attn_type == "self":
                 query, key, value = self.linear_query(query),\
-                                    self.linear_keys(query),\
-                                    self.linear_values(query)
+                                        self.linear_keys(query),\
+                                        self.linear_values(query)
                 key = shape(key)
                 value = shape(value)
                 if layer_cache["self_keys"] is not None:
@@ -150,12 +150,12 @@ class MultiHeadedAttention(nn.Module):
                 query = self.linear_query(query)
                 if layer_cache["memory_keys"] is None:
                     key, value = self.linear_keys(key),\
-                                 self.linear_values(value)
+                                     self.linear_values(value)
                     key = shape(key)
                     value = shape(value)
                 else:
                     key, value = layer_cache["memory_keys"],\
-                               layer_cache["memory_values"]
+                                   layer_cache["memory_values"]
                 layer_cache["memory_keys"] = key
                 layer_cache["memory_values"] = value
         else:
@@ -169,8 +169,8 @@ class MultiHeadedAttention(nn.Module):
             key_len = key.size(2)
             # 1 or key_len x key_len
             relative_positions_matrix = generate_relative_positions_matrix(
-                key_len, self.max_relative_positions,
-                cache=True if layer_cache is not None else False)
+                key_len, self.max_relative_positions, cache=layer_cache is not None
+            )
             #  1 or key_len x key_len x dim_per_head
             relations_keys = self.relative_positions_embeddings(
                 relative_positions_matrix.to(key.device))
@@ -221,9 +221,9 @@ class MultiHeadedAttention(nn.Module):
 
         # Return one attn
         top_attn = attn \
-            .view(batch_size, head_count,
+                .view(batch_size, head_count,
                   query_len, key_len)[:, 0, :, :] \
-            .contiguous()
+                .contiguous()
 
         return output, top_attn
 

@@ -26,7 +26,7 @@ class Elementwise(nn.ModuleList):
         outputs = [f(x) for f, x in zip(self, inputs_)]
         if self.merge == 'first':
             return outputs[0]
-        elif self.merge == 'concat' or self.merge == 'mlp':
+        elif self.merge in ['concat', 'mlp']:
             return torch.cat(outputs, 2)
         elif self.merge == 'sum':
             return sum(outputs)
